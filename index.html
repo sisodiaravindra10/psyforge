@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PSYFORGE — psytrance beat forge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Monoton&family=Chakra+Petch:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="scanlines" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="brand">
+    <h1 class="logo">PSYFORGE</h1>
+    <p class="tagline">psytrance beat forge &middot; 100% synthesized in your browser</p>
+  </div>
+
+  <div class="transport">
+    <button id="play" class="play-btn" title="Play / Stop (Space)">
+      <span class="play-icon">&#9654;</span>
+      <span class="play-label">PLAY</span>
+    </button>
+
+    <div class="ctl bpm-ctl">
+      <label for="bpm">BPM <span id="bpm-val" class="val">145</span></label>
+      <input type="range" id="bpm" min="120" max="160" step="1" value="145">
+    </div>
+
+    <div class="ctl">
+      <label for="preset">PRESET</label>
+      <select id="preset"></select>
+    </div>
+
+    <div class="ctl">
+      <label for="root">ROOT</label>
+      <select id="root">
+        <option value="26">D1</option>
+        <option value="27">D#1</option>
+        <option value="28" selected>E1</option>
+        <option value="29">F1</option>
+        <option value="30">F#1</option>
+        <option value="31">G1</option>
+        <option value="33">A1</option>
+      </select>
+    </div>
+
+    <div class="ctl">
+      <label for="scale">SCALE</label>
+      <select id="scale">
+        <option value="phrygian" selected>Phrygian</option>
+        <option value="phrygianDom">Phrygian Dominant</option>
+        <option value="harmonicMinor">Harmonic Minor</option>
+        <option value="minor">Natural Minor</option>
+      </select>
+    </div>
+
+    <div class="ctl">
+      <label for="swing">SWING <span id="swing-val" class="val">0%</span></label>
+      <input type="range" id="swing" min="0" max="40" step="1" value="0">
+    </div>
+
+    <div class="ctl master-ctl">
+      <label for="master">MASTER <span id="master-val" class="val">85</span></label>
+      <input type="range" id="master" min="0" max="100" step="1" value="85">
+    </div>
+
+    <button id="build" class="build-btn" title="Queue a 2-bar snare-roll build at the next bar (while playing)">BUILD</button>
+    <button id="export" class="export-btn" title="Render to WAV — the song chain in SONG mode, 8 bars of the loop otherwise">&#11015; WAV</button>
+  </div>
+</header>
+
+<section id="viz-wrap" class="viz-wrap">
+  <canvas id="viz-gl"></canvas>
+  <canvas id="viz"></canvas>
+  <div class="viz-overlay">
+    <div class="viz-top">
+      <span id="viz-preset" class="viz-preset-name"></span>
+      <div class="viz-btns">
+        <button id="viz-style" class="mini-btn" title="Switch visual style (V)">&#10022; TUNNEL</button>
+        <button id="viz-toggle" class="mini-btn" title="Toggle visualizer">VIZ ON</button>
+        <button id="viz-full" class="mini-btn" title="Fullscreen visualizer">&#x2922;</button>
+      </div>
+    </div>
+    <div class="viz-bottom">
+      <input id="word" class="word-input" maxlength="12" placeholder="TYPE"
+             spellcheck="false" autocomplete="off"
+             title="Type up to 12 letters — they render as beat-reactive pixels">
+    </div>
+  </div>
+</section>
+
+<main class="console">
+  <section class="arrange">
+    <div class="arrange-group">
+      <span class="arr-label">PATTERN</span>
+      <div id="slot-tabs" class="slot-tabs"></div>
+      <button id="dup" class="mini-btn" title="Copy this pattern into the next slot">&#x2750; DUP</button>
+    </div>
+    <div class="arrange-group grow">
+      <span class="arr-label">SONG</span>
+      <button id="mode" class="mini-btn mode-btn" title="LOOP repeats the current pattern; SONG plays the chain (one bar per block)">LOOP</button>
+      <div id="chain" class="chain" title="Click a block to remove it"></div>
+      <div id="chain-add" class="chain-add"></div>
+    </div>
+  </section>
+
+  <div id="grid" class="grid"></div>
+
+  <section class="lower">
+    <div class="macros panel">
+      <h2 class="panel-title">SOUND DESIGN</h2>
+      <div class="macro-grid">
+        <div class="macro">
+          <label for="m-cutoff">BASS CUTOFF</label>
+          <input type="range" id="m-cutoff" min="300" max="1400" step="10" value="750">
+        </div>
+        <div class="macro">
+          <label for="m-decay">BASS DECAY</label>
+          <input type="range" id="m-decay" min="30" max="200" step="1" value="55">
+        </div>
+        <div class="macro">
+          <label for="m-res">LEAD RESONANCE</label>
+          <input type="range" id="m-res" min="1" max="18" step="0.5" value="8">
+        </div>
+        <div class="macro">
+          <label for="m-delay">DELAY MIX</label>
+          <input type="range" id="m-delay" min="0" max="60" step="1" value="22">
+        </div>
+        <div class="macro">
+          <label for="m-drive">DRIVE</label>
+          <input type="range" id="m-drive" min="0" max="100" step="1" value="45">
+        </div>
+      </div>
+    </div>
+
+    <div class="about panel">
+      <h2 class="panel-title">ABOUT THIS SOUND</h2>
+      <p id="about-text" class="about-text"></p>
+      <p class="hints">
+        <span><b>click</b> toggle step</span>
+        <span><b>drag</b> paint</span>
+        <span><b>shift+click</b> accent</span>
+        <span><b>scroll</b> on bass/lead/vox = pitch</span>
+        <span><b>alt+click</b> on vox = vowel</span>
+        <span><b>space</b> play/stop</span>
+        <span><b>B</b> build</span>
+        <span><b>V</b> visual style</span>
+        <span><b>1-4</b> pattern A&ndash;D</span>
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>Patterns inspired by the masters — Astrix &middot; Infected Mushroom &middot; Vini Vici &middot; Neelix &middot; Hallucinogen &middot; Astral Projection &middot; Kindzadza &middot; Avicii &middot; Martin Garrix &middot; Swedish House Mafia</span>
+</footer>
+
+<script src="js/presets.js"></script>
+<script src="js/audio-engine.js"></script>
+<script src="js/sequencer.js"></script>
+<script src="js/export.js"></script>
+<script src="js/visualizer.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
