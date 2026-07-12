@@ -418,6 +418,9 @@ void main() {
         this._spawnParticles(e.note || 0, e.vel);
       } else if (e.type === 'vox') {
         this._spawnParticles(e.note || 0, e.vel, true); // soft slow halo for voices
+      } else if (e.type === 'voice') {
+        this._spawnParticles((e.note || 0) * 2, e.vel, true); // voice-note slices
+        this.shake = Math.min(1.2, this.shake + 0.1 * e.vel);
       } else if (e.type === 'clap') {
         this.shake = Math.min(1.2, this.shake + 0.14 * e.vel);
       } else if (e.type === 'fx') {

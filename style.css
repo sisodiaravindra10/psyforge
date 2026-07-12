@@ -18,6 +18,7 @@
   --ohat: #7fd4ff;
   --lead: #ff9100;
   --vox: #ffe066;
+  --voice: #3dffc0;
   --fx: #b06bff;
   --cell: #17102e;
   --cell-edge: #2a1e55;
@@ -715,6 +716,71 @@ body.thump .viz-wrap {
   .pad-row { flex-direction: column; }
   .rec-btn { width: 100%; height: 40px; }
 }
+
+/* ============ FRED MODE ============ */
+
+.fredmode { margin-top: 16px; }
+
+.fred-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.mic-btn { width: auto; padding: 0 16px; height: 40px; font-size: 12px; }
+
+.mic-btn.nudge { animation: mic-nudge 0.4s ease; border-color: var(--voice); color: var(--voice); }
+
+@keyframes mic-nudge {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+#voice-wave {
+  height: 56px;
+  width: 240px;
+  background: rgba(3, 1, 8, 0.7);
+  border: 1px solid var(--cell-edge);
+  border-radius: 8px;
+}
+
+.fred-pitch { min-width: 160px; }
+
+.pad.voice-pad {
+  border-color: color-mix(in srgb, var(--voice) 45%, var(--cell-edge));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--voice) 12%, var(--cell)), var(--cell));
+  color: var(--voice);
+  opacity: 0.55;
+  height: 52px;
+}
+
+.pad.voice-pad.loaded { opacity: 1; }
+.pad.voice-pad:hover { border-color: var(--voice); }
+.pad.voice-pad.hit { background: var(--voice); color: #002a1a; box-shadow: 0 0 26px var(--voice); }
+
+.fred-tts {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tts-input {
+  flex: 1;
+  max-width: 460px;
+  padding: 8px 12px;
+  background: var(--cell);
+  border: 1px solid var(--cell-edge);
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  outline: none;
+}
+
+.tts-input:focus { border-color: var(--voice); box-shadow: 0 0 10px rgba(61, 255, 192, 0.25); }
 
 /* ============ lower panels ============ */
 

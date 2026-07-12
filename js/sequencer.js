@@ -10,7 +10,7 @@
 (function () {
   const PSY = (window.PSY = window.PSY || {});
 
-  const TRACKS = ['kick', 'clap', 'bass', 'chat', 'ohat', 'lead', 'vox', 'fx'];
+  const TRACKS = ['kick', 'clap', 'bass', 'chat', 'ohat', 'lead', 'vox', 'voice', 'fx'];
   const SLOTS = ['A', 'B', 'C', 'D'];
 
   class Sequencer {
@@ -59,7 +59,12 @@
 
     static copyPattern(pat) {
       const p = {};
-      for (const t of TRACKS) p[t] = pat[t].map((s) => ({ ...s }));
+      for (const t of TRACKS) {
+        // presets may omit newer tracks (e.g. voice) — fall back to empty
+        p[t] = pat[t]
+          ? pat[t].map((s) => ({ ...s }))
+          : Array.from({ length: 16 }, () => ({ on: false, vel: 0.85, note: 0, vowel: 'ah' }));
+      }
       return p;
     }
 
@@ -235,6 +240,10 @@
         const prev = pat.vox[(i + 15) % 16];
         eng.vox(t, PSY.midiToFreq(midi), pat.vox[i].vel, this.stepDur * 1.7, pat.vox[i].vowel, prev.on);
         this.events.push({ type: 'vox', time: t, vel: pat.vox[i].vel, note: deg });
+      }
+      if (pat.voice[i].on) {
+        eng.voice(t, pat.voice[i].note, pat.voice[i].vel);
+        this.events.push({ type: 'voice', time: t, vel: pat.voice[i].vel, note: pat.voice[i].note });
       }
       if (pat.fx[i].on) {
         eng.zap(t, pat.fx[i].vel, i);

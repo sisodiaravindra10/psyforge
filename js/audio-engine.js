@@ -22,6 +22,7 @@
         duckDepth: 0.45,  // sidechain floor — lower = deeper EDM pump
         duckRelease: 0.13,
         clapTone: 1150,   // clap bandpass center — ~2000 = dhol "ta" slap
+        voicePitch: 0,    // semitone shift for the sampled voice-note slices
         master: 0.85,
       };
     }
@@ -29,12 +30,14 @@
     constructor() {
       this.ctx = null;
       this.params = Engine.DEFAULTS;
-      this.levels = { kick: 0.95, clap: 0.55, bass: 0.9, chat: 0.4, ohat: 0.45, lead: 0.6, vox: 0.6, fx: 0.5 };
-      this.mutes = { kick: false, clap: false, bass: false, chat: false, ohat: false, lead: false, vox: false, fx: false };
+      this.levels = { kick: 0.95, clap: 0.55, bass: 0.9, chat: 0.4, ohat: 0.45, lead: 0.6, vox: 0.6, voice: 0.8, fx: 0.5 };
+      this.mutes = { kick: false, clap: false, bass: false, chat: false, ohat: false, lead: false, vox: false, voice: false, fx: false };
       this.tracks = {};
       this.analyser = null;
       this._lastLeadFreq = null;
       this._lastVoxFreq = null;
+      this.voiceBuffer = null; // recorded voice-note AudioBuffer (FRED MODE)
+      this.voiceSlices = 8;
     }
 
     // formant frequencies (F1/F2/F3) for the vox voice
@@ -86,10 +89,11 @@
       this.buildGain.gain.value = 0.9;
       this.buildGain.connect(this.master);
 
-      for (const name of ['kick', 'clap', 'bass', 'chat', 'ohat', 'lead', 'vox', 'fx']) {
+      for (const name of ['kick', 'clap', 'bass', 'chat', 'ohat', 'lead', 'vox', 'voice', 'fx']) {
         const g = ctx.createGain();
         g.gain.value = this.mutes[name] ? 0 : this.levels[name];
-        if (name === 'bass' || name === 'lead' || name === 'vox' || name === 'fx') g.connect(this.duck);
+        // voice notes duck under the kick too — the Fred again.. pump
+        if (name === 'bass' || name === 'lead' || name === 'vox' || name === 'voice' || name === 'fx') g.connect(this.duck);
         else g.connect(this.master);
         this.tracks[name] = g;
       }
@@ -683,6 +687,44 @@
       send.connect(this.delayIn);
       src.start(t);
       src.stop(t + 1.4);
+    }
+
+    // FRED MODE: load a recorded voice note; it plays as 8 equal slices
+    setVoiceBuffer(buffer) {
+      this.voiceBuffer = buffer;
+    }
+
+    // play one slice of the voice note — pitch-shifted via playbackRate
+    // (chipmunk up / slowed down, the classic voice-note flip)
+    voice(t, slice = 0, vel = 1) {
+      if (!this.voiceBuffer || !this.ctx) return;
+      const ctx = this.ctx;
+      const buf = this.voiceBuffer;
+      const n = this.voiceSlices;
+      const segDur = buf.duration / n;
+      const offset = Math.min(slice, n - 1) * segDur;
+      const content = Math.min(segDur * 1.15, buf.duration - offset);
+      const rate = Math.pow(2, (this.params.voicePitch || 0) / 12);
+      const audible = Math.max(0.06, content / rate);
+
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.playbackRate.value = rate;
+
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.9 * vel, t + 0.006);
+      g.gain.setValueAtTime(0.9 * vel, t + audible - 0.045);
+      g.gain.linearRampToValueAtTime(0, t + audible);
+
+      const send = ctx.createGain();
+      send.gain.value = Math.min(0.4, this.params.delayMix * 0.5);
+
+      src.connect(g);
+      g.connect(this.tracks.voice);
+      g.connect(send);
+      send.connect(this.delayIn);
+      src.start(t, offset, content + 0.03);
     }
 
     // dark-psy zap: FM'd fast pitch-drop laser into the delay web

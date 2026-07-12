@@ -21,6 +21,7 @@
     eng2.params = JSON.parse(JSON.stringify(engine.params));
     eng2.levels = { ...engine.levels };
     eng2.mutes = { ...engine.mutes };
+    eng2.voiceBuffer = engine.voiceBuffer; // voice-note slices render offline too
     eng2.init(off);
     eng2.setTempo(bpm);
 

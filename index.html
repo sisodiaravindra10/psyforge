@@ -120,6 +120,28 @@
     </div>
   </section>
 
+  <section class="fredmode panel">
+    <h2 class="panel-title">FRED MODE — real human voice notes
+      <span class="pad-hint">record a 10&ndash;20 word line (yours or a friend's) &middot; it slices onto 8 pads &middot; arm GRID to punch slices into the VOICE row &middot; scroll a VOICE cell = pick slice &middot; PITCH = chipmunk / slowed</span>
+    </h2>
+    <div class="fred-top">
+      <button id="mic-btn" class="rec-btn mic-btn" title="Record up to 10 seconds from your microphone">&#127908; REC LINE</button>
+      <canvas id="voice-wave" width="240" height="56"></canvas>
+      <div class="macro fred-pitch">
+        <label for="vpitch">PITCH <span id="vpitch-val" class="val">0</span> ST</label>
+        <input type="range" id="vpitch" min="-12" max="12" step="1" value="0">
+      </div>
+    </div>
+    <div class="pad-row">
+      <button id="voice-rec" class="rec-btn" title="Record pad hits into the VOICE track, quantized to 16ths">&#9679; GRID</button>
+      <div id="voice-pads" class="pads"></div>
+    </div>
+    <div class="fred-tts">
+      <input id="tts-line" class="tts-input" maxlength="140" placeholder="no mic? type a 10&ndash;20 word line&hellip;" spellcheck="false">
+      <button id="tts-speak" class="mini-btn" title="Spoken live by your device's voice — not part of the WAV export">SPEAK (live only)</button>
+    </div>
+  </section>
+
   <section class="lower">
     <div class="macros panel">
       <h2 class="panel-title">SOUND DESIGN</h2>

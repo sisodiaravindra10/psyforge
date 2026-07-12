@@ -20,6 +20,7 @@
     ohat: { label: 'OHAT', color: 'var(--ohat)', pitched: false },
     lead: { label: 'LEAD', color: 'var(--lead)', pitched: true },
     vox:  { label: 'VOX',  color: 'var(--vox)',  pitched: true, vox: true },
+    voice: { label: 'VOICE', color: 'var(--voice)', pitched: false, slice: true },
     fx:   { label: 'FX',   color: 'var(--fx)',  pitched: false },
   };
 
@@ -111,12 +112,13 @@
             renderCell(track, i);
           }
         });
-        if (meta.pitched) {
+        if (meta.pitched || meta.slice) {
           cell.addEventListener('wheel', (e) => {
             e.preventDefault();
             const st = seq.pattern[track][i];
             const d = e.deltaY < 0 ? 1 : -1;
-            st.note = Math.max(0, Math.min(PSY.MAX_DEGREE, st.note + d));
+            const max = meta.slice ? 7 : PSY.MAX_DEGREE;
+            st.note = Math.max(0, Math.min(max, st.note + d));
             renderCell(track, i);
           }, { passive: false });
         }
@@ -142,6 +144,8 @@
       let label = PSY.midiName(midi);
       if (meta.vox) label += '·' + PSY.VOWEL_CHAR[st.vowel || 'ah'];
       el.firstChild.textContent = label;
+    } else if (meta.slice) {
+      el.firstChild.textContent = 'S' + (st.note + 1);
     }
   }
 
@@ -314,6 +318,158 @@
     }
   }
 
+  /* ---------- FRED MODE: real voice notes, sliced and sequenced ---------- */
+
+  let fredRec = false; // grid-record toggle for slice pads
+  let micRecorder = null;
+  let micStopTimer = null;
+  const voicePads = [];
+
+  function buildFred() {
+    const wrap = $('voice-pads');
+    for (let i = 0; i < 8; i++) {
+      const pad = document.createElement('button');
+      pad.className = 'pad voice-pad';
+      pad.innerHTML = `<span class="pad-note">S${i + 1}</span><span class="pad-vowel">slice</span>`;
+      pad.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        voiceTrigger(i);
+      });
+      wrap.appendChild(pad);
+      voicePads.push(pad);
+    }
+
+    $('voice-rec').addEventListener('click', () => {
+      fredRec = !fredRec;
+      $('voice-rec').classList.toggle('armed', fredRec);
+    });
+
+    $('vpitch').addEventListener('input', (e) => {
+      engine.params.voicePitch = +e.target.value;
+      $('vpitch-val').textContent = e.target.value;
+    });
+
+    $('mic-btn').addEventListener('click', () => {
+      micRecorder ? stopMic() : startMic();
+    });
+
+    // TTS fallback — a typed line spoken by the OS voice (live layer only)
+    $('tts-speak').addEventListener('click', () => {
+      const line = $('tts-line').value.trim();
+      if (!line || !window.speechSynthesis) return;
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(line.slice(0, 140));
+      u.rate = 1.0;
+      speechSynthesis.speak(u);
+    });
+  }
+
+  async function startMic() {
+    const btn = $('mic-btn');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      const chunks = [];
+      micRecorder = new MediaRecorder(stream);
+      micRecorder.ondataavailable = (e) => chunks.push(e.data);
+      micRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        try {
+          engine.init();
+          const buf = await new Blob(chunks).arrayBuffer();
+          const audio = await engine.ctx.decodeAudioData(buf);
+          engine.setVoiceBuffer(audio);
+          drawVoiceWave(audio);
+          btn.textContent = '● RE-RECORD';
+          voicePads.forEach((p) => p.classList.add('loaded'));
+        } catch (err) {
+          console.error('voice decode failed:', err);
+          btn.textContent = '⚠ FAILED — RETRY';
+        }
+        micRecorder = null;
+      };
+      micRecorder.start();
+      btn.classList.add('armed');
+      let left = 10;
+      btn.textContent = `■ STOP (${left}s)`;
+      micStopTimer = setInterval(() => {
+        left--;
+        btn.textContent = `■ STOP (${left}s)`;
+        if (left <= 0) stopMic();
+      }, 1000);
+    } catch (err) {
+      btn.textContent = '⚠ MIC BLOCKED';
+      setTimeout(() => (btn.textContent = '🎤 REC LINE'), 2500);
+    }
+  }
+
+  function stopMic() {
+    clearInterval(micStopTimer);
+    $('mic-btn').classList.remove('armed');
+    if (micRecorder && micRecorder.state !== 'inactive') micRecorder.stop();
+  }
+
+  function drawVoiceWave(buffer) {
+    const cv = $('voice-wave');
+    const c = cv.getContext('2d');
+    const W = cv.width;
+    const H = cv.height;
+    c.clearRect(0, 0, W, H);
+    const data = buffer.getChannelData(0);
+    const step = Math.max(1, Math.floor(data.length / W));
+    c.strokeStyle = 'rgba(61, 255, 192, 0.9)';
+    c.lineWidth = 1;
+    c.beginPath();
+    for (let x = 0; x < W; x++) {
+      let min = 1, max = -1;
+      for (let j = 0; j < step; j++) {
+        const v = data[x * step + j] || 0;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      c.moveTo(x, (H / 2) * (1 + min));
+      c.lineTo(x, (H / 2) * (1 + max) + 0.5);
+    }
+    c.stroke();
+    // slice boundaries
+    c.strokeStyle = 'rgba(207, 200, 238, 0.35)';
+    for (let s = 1; s < 8; s++) {
+      const x = (W / 8) * s;
+      c.beginPath();
+      c.moveTo(x, 0);
+      c.lineTo(x, H);
+      c.stroke();
+    }
+  }
+
+  function voiceTrigger(i) {
+    if (!engine.voiceBuffer) {
+      const btn = $('mic-btn');
+      btn.classList.add('nudge');
+      setTimeout(() => btn.classList.remove('nudge'), 400);
+      return;
+    }
+    engine.init();
+    const ctx = engine.ctx;
+    if (ctx.state === 'suspended') ctx.resume();
+    engine.voice(ctx.currentTime, i, 1);
+    viz.onEvent({ type: 'voice', time: ctx.currentTime, vel: 1, note: i });
+
+    voicePads[i].classList.add('hit');
+    setTimeout(() => voicePads[i].classList.remove('hit'), 130);
+
+    if (fredRec && seq.playing) {
+      const k = seq.step + Math.round((ctx.currentTime - seq.nextTime) / seq.stepDur);
+      const idx = ((k % 16) + 16) % 16;
+      const st = seq.pattern.voice[idx];
+      st.on = true;
+      st.vel = 0.95;
+      st.note = i;
+      renderCell('voice', idx);
+    }
+  }
+
   /* ---------- presets ---------- */
 
   // auto-generate B/C/D arrangement variations from the core pattern
@@ -358,8 +514,10 @@
     $('swing-val').textContent = Math.round(seq.swing * 100) + '%';
 
     // reset to genre-neutral defaults first so presets only carry overrides
+    // (master + voice pitch are performance controls — preserve them)
     const master = engine.params.master;
-    Object.assign(engine.params, PSY.Engine.DEFAULTS, p.engine, { master });
+    const voicePitch = engine.params.voicePitch;
+    Object.assign(engine.params, PSY.Engine.DEFAULTS, p.engine, { master, voicePitch });
     engine._updateDrive();
     for (const [t, v] of Object.entries(p.levels)) engine.setTrackLevel(t, v);
 
@@ -591,6 +749,10 @@
           viz.onEvent(e);
           chipFlash('vox');
           break;
+        case 'voice':
+          viz.onEvent(e);
+          chipFlash('voice');
+          break;
         case 'chat':
           chipFlash('chat');
           break;
@@ -631,6 +793,7 @@
   buildGrid();
   buildArrange();
   buildPads();
+  buildFred();
   wireControls();
   applyPreset('fullon');
   requestAnimationFrame(loop);

@@ -60,6 +60,27 @@ Presets are plain data in [js/presets.js](js/presets.js). Copy any block in
 Reload — it appears in the preset menu with A/B/C/D variations and a song
 chain auto-generated.
 
+## FRED MODE (real human voice notes)
+
+The VOX track is a *synthesized* choir — FRED MODE is the real thing, the
+Fred again.. workflow: hit **🎤 REC LINE** and record up to 10 seconds of an
+actual human voice (a 10–20 word line — yours, a friend's, a voice memo
+played at the mic). The clip is sliced into 8 equal chunks on the green
+**S1–S8 pads**:
+
+- Tap pads to chop the line live; arm **● GRID** while playing and hits are
+  quantized into the **VOICE row** of the sequencer
+- **Scroll a VOICE cell** to pick which slice it plays
+- **PITCH** shifts the whole voice ±12 semitones — chipmunk up or slowed down,
+  the classic voice-note flip
+- Slices are sidechain-ducked under the kick (the Fred pump) and feed the
+  delay web — and because the clip lives in the audio graph, it **renders
+  into the WAV export**
+
+No mic handy? Type a line in the box and **SPEAK** plays it through your
+device's text-to-speech as a live layer (TTS can't be captured into the
+export — recording is the real deal).
+
 ## VOX PAD (live voice performance)
 
 The pad row under the grid plays the formant voice live — 8 pads = 8 scale
