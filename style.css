@@ -316,6 +316,9 @@ input[type="range"]::-moz-range-thumb {
 
 .slot-tab:hover { border-color: var(--acid); }
 
+.slot-tab { cursor: grab; }
+.slot-tab:active { cursor: grabbing; }
+
 .slot-tab.active {
   background: var(--acid);
   color: #0a1400;
@@ -365,10 +368,20 @@ input[type="range"]::-moz-range-thumb {
 
 .chain-block:hover { transform: scale(1.12); }
 
+.chain-block { cursor: grab; }
+.chain-block.dragging { opacity: 0.35; cursor: grabbing; }
+.chain-block.drop-before { box-shadow: -4px 0 0 0 var(--acid), 0 0 10px rgba(182, 255, 0, 0.4); }
+.chain.drop-end { box-shadow: inset -4px 0 0 var(--acid); border-color: var(--acid); }
+
 .chain-block.playing {
   outline: 2px solid #fff;
   outline-offset: -1px;
   box-shadow: 0 0 14px var(--sc, var(--cyan));
+}
+
+.fredmode.dropping {
+  border-color: var(--voice);
+  box-shadow: 0 0 28px rgba(61, 255, 192, 0.3), inset 0 0 40px rgba(61, 255, 192, 0.06);
 }
 
 .slot-A { --sc: var(--magenta); }

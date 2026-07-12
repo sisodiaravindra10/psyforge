@@ -159,17 +159,85 @@
 
   const slotBtns = {};
 
+  /* chain drag & drop: drag A–D tabs in to insert, drag blocks to reorder */
+
+  let dropIndex = -1;
+
+  function clearDropMarks() {
+    dropIndex = -1;
+    const chain = $('chain');
+    chain.classList.remove('drop-end');
+    for (const b of chain.children) b.classList.remove('drop-before');
+  }
+
+  function chainInsert(slot, idx) {
+    idx = Math.max(0, Math.min(seq.chain.length, idx));
+    seq.chain.splice(idx, 0, slot);
+    renderChain();
+  }
+
+  function chainMove(from, to) {
+    if (from < 0 || from >= seq.chain.length) return;
+    const s = seq.chain.splice(from, 1)[0];
+    if (to > from) to--;
+    seq.chain.splice(Math.max(0, Math.min(seq.chain.length, to)), 0, s);
+    renderChain();
+  }
+
+  function wireChainDnd() {
+    const chain = $('chain');
+
+    chain.addEventListener('dragover', (e) => {
+      const types = e.dataTransfer.types;
+      if (!types.includes('text/psy-slot') && !types.includes('text/psy-move')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = types.includes('text/psy-move') ? 'move' : 'copy';
+      const blocks = [...chain.querySelectorAll('.chain-block')];
+      let idx = blocks.length;
+      for (let i = 0; i < blocks.length; i++) {
+        const r = blocks[i].getBoundingClientRect();
+        if (e.clientX < r.left + r.width / 2) {
+          idx = i;
+          break;
+        }
+      }
+      dropIndex = idx;
+      blocks.forEach((b, i) => b.classList.toggle('drop-before', i === idx));
+      chain.classList.toggle('drop-end', idx === blocks.length);
+    });
+
+    chain.addEventListener('dragleave', (e) => {
+      if (!chain.contains(e.relatedTarget)) clearDropMarks();
+    });
+
+    chain.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const slot = e.dataTransfer.getData('text/psy-slot');
+      const moveFrom = e.dataTransfer.getData('text/psy-move');
+      const idx = dropIndex < 0 ? seq.chain.length : dropIndex;
+      if (slot) chainInsert(slot, idx);
+      else if (moveFrom !== '') chainMove(+moveFrom, idx);
+      clearDropMarks();
+    });
+  }
+
   function buildArrange() {
     const tabs = $('slot-tabs');
     for (const s of PSY.Sequencer.SLOTS) {
       const b = document.createElement('button');
       b.className = 'slot-tab';
       b.textContent = s;
-      b.title = 'Edit pattern ' + s + ' (key ' + (PSY.Sequencer.SLOTS.indexOf(s) + 1) + ')';
+      b.title = 'Edit pattern ' + s + ' (key ' + (PSY.Sequencer.SLOTS.indexOf(s) + 1) + ') — drag into the SONG chain to add a bar';
+      b.draggable = true;
+      b.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/psy-slot', s);
+        e.dataTransfer.effectAllowed = 'copy';
+      });
       b.addEventListener('click', () => selectSlot(s));
       tabs.appendChild(b);
       slotBtns[s] = b;
     }
+    wireChainDnd();
 
     $('dup').addEventListener('click', () => {
       const slots = PSY.Sequencer.SLOTS;
@@ -224,7 +292,17 @@
       const b = document.createElement('button');
       b.className = 'chain-block slot-' + s;
       b.textContent = s;
-      b.title = 'bar ' + (idx + 1) + ' — click to remove';
+      b.title = 'bar ' + (idx + 1) + ' — drag to move, click to remove';
+      b.draggable = true;
+      b.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/psy-move', String(idx));
+        e.dataTransfer.effectAllowed = 'move';
+        b.classList.add('dragging');
+      });
+      b.addEventListener('dragend', () => {
+        b.classList.remove('dragging');
+        clearDropMarks();
+      });
       b.addEventListener('click', () => {
         seq.chain.splice(idx, 1);
         renderChain();
@@ -362,6 +440,61 @@
       u.rate = 1.0;
       speechSynthesis.speak(u);
     });
+
+    wireFredFileDrop();
+  }
+
+  // drag an audio file (voice memo, sample) from the desktop onto FRED MODE
+  function wireFredFileDrop() {
+    const zone = document.querySelector('.fredmode');
+    const hasFiles = (e) => [...e.dataTransfer.types].includes('Files');
+
+    for (const ev of ['dragover', 'dragenter']) {
+      zone.addEventListener(ev, (e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        zone.classList.add('dropping');
+      });
+    }
+    zone.addEventListener('dragleave', (e) => {
+      if (!zone.contains(e.relatedTarget)) zone.classList.remove('dropping');
+    });
+    zone.addEventListener('drop', async (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      zone.classList.remove('dropping');
+      const file = e.dataTransfer.files[0];
+      if (!file || !/^audio\//.test(file.type)) return;
+      try {
+        engine.init();
+        const raw = await file.arrayBuffer();
+        let audio = await engine.ctx.decodeAudioData(raw);
+        if (audio.duration > 20) audio = trimBuffer(audio, 20);
+        engine.setVoiceBuffer(audio);
+        drawVoiceWave(audio);
+        $('mic-btn').textContent = '● RE-RECORD';
+        voicePads.forEach((p) => p.classList.add('loaded'));
+      } catch (err) {
+        console.error('dropped file decode failed:', err);
+      }
+    });
+
+    // don't let a missed drop navigate the page away to the audio file
+    document.addEventListener('dragover', (e) => {
+      if (hasFiles(e)) e.preventDefault();
+    });
+    document.addEventListener('drop', (e) => {
+      if (hasFiles(e)) e.preventDefault();
+    });
+  }
+
+  function trimBuffer(buf, secs) {
+    const len = Math.min(buf.length, Math.floor(secs * buf.sampleRate));
+    const out = engine.ctx.createBuffer(buf.numberOfChannels, len, buf.sampleRate);
+    for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+      out.getChannelData(ch).set(buf.getChannelData(ch).subarray(0, len));
+    }
+    return out;
   }
 
   async function startMic() {

@@ -121,9 +121,13 @@ the WAV export too.
   **B** stripped intro (no lead/FX), **C** breakdown (no kick/bass), **D** peak
   (extra FX, accented lead) — plus a ready-made 12-bar chain.
 - **DUP** copies the current pattern to the next slot for making variations.
-- **SONG mode** plays the chain (one bar per block). Click `+A…+D` to append
-  bars, click a block to remove it. In LOOP mode the selected slot repeats —
-  switching slots live is a performance tool.
+- **SONG mode** plays the chain (one bar per block). Build the set by
+  **dragging the A–D pattern tabs into the chain** at any position, **drag
+  blocks to reorder** them, click a block to remove it (the `+A…+D` buttons
+  still work too). In LOOP mode the selected slot repeats — switching slots
+  live is a performance tool.
+- **Drop an audio file** (voice memo, sample — first 20s) anywhere on the
+  FRED MODE panel to load it as the sliced voice instead of recording.
 - **BUILD** queues a 2-bar accelerating snare roll + riser starting at the next
   bar, ending in a crash drop. Classic psytrance tension engineering.
 
