@@ -32,11 +32,42 @@ scale, and rhythm archetypes:
 | Levels Anthem | Avicii | 126 |
 | Big Room Drop | Martin Garrix / Hardwell | 128 |
 | Festival Choir | Swedish House Mafia / Alesso | 126 |
+| Punjabi Dhol | Panjabi MC / Diljit-style bhangra | 102 |
+| Desi Psy Fusion | Bhangra × full-on psytrance | 145 |
 
 Patterns are original, written in the style of each artist — rhythm archetypes
 and sound design character, not copies. The EDM presets swap the tight psy
 kick for a boomy 4-on-the-floor with deep sidechain pump, add claps on 2 & 4,
-and use pluck/chord lead styles in major keys.
+and use pluck/chord lead styles in major keys. The desi presets bring the
+bhangra **dhol chaal** gallop, high "ta" slaps (retuned clap), a twangy
+**tumbi** lead with grace-note bends, "hoi! hoi!" chants, and a swing lilt.
+
+## Adding your own preset
+
+Presets are plain data in [js/presets.js](js/presets.js). Copy any block in
+`PSY.PRESETS` and change:
+
+- `bpm`, `rootMidi` (28 = E1), `scale` (see `PSY.SCALES`), optional `swing`
+- `genre` — groups it in the dropdown (`psy` / `edm` / `desi`, or invent one)
+- `tracks` — step patterns via the `tk(on, accents, notes, vowels)` helper:
+  `on` = array of step indices 0–15, `notes` = `{step: scaleDegree}`,
+  `vowels` = `{step: 'ah'|'oh'|'oo'|'eh'|'ee'}` for the VOX track
+- `engine` — synth character overrides (kick sweep, bass filter, lead style
+  `acid | saws | fm | pluck | chord | tumbi`, sidechain depth, clap tone…)
+- `palette` — visualizer hues + symmetry, `levels` — mixer defaults, `desc` —
+  the about-panel text
+
+Reload — it appears in the preset menu with A/B/C/D variations and a song
+chain auto-generated.
+
+## VOX PAD (live voice performance)
+
+The pad row under the grid plays the formant voice live — 8 pads = 8 scale
+degrees, each with its own vowel (**alt+click a pad to change it**), playable
+by mouse/touch or keys **Q–I**. Arm **● REC** while the sequencer runs and
+every pad hit is quantized to the nearest 16th and written into the VOX row
+of the pattern you're editing — punch chants in between the beats in real
+time, performance-style. Pads follow the current root & scale.
 
 ## The VOX track (synthesized human voices)
 

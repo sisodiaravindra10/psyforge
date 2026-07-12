@@ -21,6 +21,7 @@
         kickDecay: 0.24,
         duckDepth: 0.45,  // sidechain floor — lower = deeper EDM pump
         duckRelease: 0.13,
+        clapTone: 1150,   // clap bandpass center — ~2000 = dhol "ta" slap
         master: 0.85,
       };
     }
@@ -246,7 +247,7 @@
       src.loop = true;
       const bp = ctx.createBiquadFilter();
       bp.type = 'bandpass';
-      bp.frequency.value = 1150;
+      bp.frequency.value = this.params.clapTone;
       bp.Q.value = 1.1;
       const g = ctx.createGain();
       const a = 0.6 * vel;
@@ -449,6 +450,45 @@
         mod.start(t);
         car.stop(t + 0.25);
         mod.stop(t + 0.25);
+        return;
+      }
+
+      if (style === 'tumbi') {
+        // tumbi: twangy high one-string pluck — grace-note bend into the pitch,
+        // saw + octave square, bright filter snapping shut fast
+        const o1 = ctx.createOscillator();
+        o1.type = 'sawtooth';
+        const o2 = ctx.createOscillator();
+        o2.type = 'square';
+        o2.detune.value = 1205; // octave up, slightly sharp = twang
+        const g2 = ctx.createGain();
+        g2.gain.value = 0.35;
+        for (const o of [o1, o2]) {
+          o.frequency.setValueAtTime(freq * 1.07, t);
+          o.frequency.exponentialRampToValueAtTime(freq, t + 0.035);
+        }
+
+        const fil = ctx.createBiquadFilter();
+        fil.type = 'lowpass';
+        fil.Q.value = 3;
+        fil.frequency.setValueAtTime(4200, t);
+        fil.frequency.exponentialRampToValueAtTime(1600, t + 0.12);
+
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.42 * vel, t + 0.002);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+
+        o1.connect(fil);
+        o2.connect(g2);
+        g2.connect(fil);
+        fil.connect(g);
+        g.connect(out);
+        send.gain.value = Math.min(0.5, p.delayMix);
+        for (const o of [o1, o2]) {
+          o.start(t);
+          o.stop(t + 0.3);
+        }
         return;
       }
 

@@ -615,6 +615,107 @@ body.thump .viz-wrap {
 
 .cell.playhead.on { box-shadow: 0 0 26px var(--tc), inset 0 0 12px rgba(255,255,255,0.6); }
 
+/* ============ VOX pad ============ */
+
+.voxpad { margin-top: 16px; }
+
+.pad-hint {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: var(--ink-dim);
+  font-weight: 400;
+  margin-left: 12px;
+}
+
+.pad-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.rec-btn {
+  flex: none;
+  width: 74px;
+  border-radius: 10px;
+  border: 1px solid var(--cell-edge);
+  background: var(--cell);
+  color: var(--ink-dim);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rec-btn.armed {
+  background: #4a0e14;
+  color: #ff4f5e;
+  border-color: #ff4f5e;
+  animation: rec-pulse 1s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 79, 94, 0.4); }
+  50% { box-shadow: 0 0 22px rgba(255, 79, 94, 0.85); }
+}
+
+.pads {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(58px, 1fr));
+  gap: 8px;
+  flex: 1;
+}
+
+.pad {
+  position: relative;
+  height: 64px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--vox) 45%, var(--cell-edge));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--vox) 14%, var(--cell)), var(--cell));
+  color: var(--vox);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: transform 0.06s ease, box-shadow 0.1s ease;
+  user-select: none;
+}
+
+.pad:hover { border-color: var(--vox); }
+.pad:active { transform: translateY(1px); }
+
+.pad.hit {
+  background: var(--vox);
+  color: #241a00;
+  box-shadow: 0 0 26px var(--vox);
+  transform: scale(1.06);
+}
+
+.pad-note { font-size: 14px; font-weight: 700; }
+.pad-vowel { font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase; opacity: 0.8; }
+
+.pad-key {
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  font-size: 9px;
+  opacity: 0.5;
+  font-weight: 700;
+}
+
+.pad.hit .pad-vowel, .pad.hit .pad-key { color: #241a00; opacity: 0.8; }
+
+@media (max-width: 900px) {
+  .pads { grid-template-columns: repeat(4, 1fr); }
+  .pad-row { flex-direction: column; }
+  .rec-btn { width: 100%; height: 40px; }
+}
+
 /* ============ lower panels ============ */
 
 .lower {

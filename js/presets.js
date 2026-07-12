@@ -307,5 +307,71 @@
     },
   ];
 
+  /* ============ DESI / PUNJABI ============ */
+  PSY.PRESETS.push(
+    {
+      id: 'punjabi',
+      genre: 'desi',
+      name: 'Punjabi Dhol',
+      artist: 'Panjabi MC / Diljit-style bhangra',
+      bpm: 102,
+      rootMidi: 31, // G1
+      scale: 'major',
+      swing: 0.12,
+      palette: { h1: 35, h2: 130, sym: 8 },
+      desc: 'Pure bhangra engine in the style of <b>Panjabi MC</b> ("Mundian To Bach Ke") and <b>Diljit Dosanjh</b>: the dhol <b>chaal</b> gallop (dha&hellip;dha-dha&hellip;) on a thuddy kick, high "ta" slaps, a twangy <b>tumbi</b> riff bouncing on the high strings, and "hoi! hoi!" chants on the offbeats. 102 BPM with a light swing lilt.',
+      engine: {
+        kickAttack: 240, kickDecay: 0.3, kickTune: 56,
+        duckDepth: 0.6, duckRelease: 0.1,
+        bassCutoff: 620, bassDecay: 0.16, bassWave: 'sawtooth',
+        leadStyle: 'tumbi', leadRes: 4, delayMix: 0.16, drive: 0.35,
+        clapTone: 2000,
+      },
+      levels: { kick: 1.0, clap: 0.6, bass: 0.85, chat: 0.3, ohat: 0.3, lead: 0.68, vox: 0.7, fx: 0.4 },
+      tracks: {
+        kick: tk([0, 3, 6, 8, 11, 14], [0, 8]), // the chaal gallop
+        clap: tk([4, 7, 12, 15], [4, 12]),      // "ta" slaps on 2 & 4 + ghost kas
+        bass: tk([0, 6, 8, 14], [0, 8], { 0: 0, 6: 0, 8: 0, 14: 4 }),
+        chat: tk(EIGHTHS),
+        ohat: tk([2, 10]),
+        lead: tk([0, 2, 3, 4, 6, 8, 10, 11, 14], [0, 6], {
+          0: 7, 2: 7, 3: 9, 4: 7, 6: 11, 8: 7, 10: 9, 11: 7, 14: 6,
+        }),
+        vox:  tk([7, 15], [7, 15], { 7: 9, 15: 7 }, { 7: 'oh', 15: 'ee' }), // hoi! hoi!
+        fx:   tk([]),
+      },
+    },
+    {
+      id: 'desipsy',
+      genre: 'desi',
+      name: 'Desi Psy Fusion',
+      artist: 'Bhangra x full-on psytrance',
+      bpm: 145,
+      rootMidi: 28, // E1
+      scale: 'phrygianDom',
+      swing: 0,
+      palette: { h1: 15, h2: 45, sym: 12 },
+      desc: 'The fusion set: a full-on psytrance roller carrying a <b>tumbi</b> riff in Phrygian Dominant (that desert-exotic double-take), dhol-style slaps riding beats 2 & 4, and low "oh-ah" chants under the roll. What happens when the Punjab meets the party at 145 BPM.',
+      engine: {
+        bassCutoff: 760, bassDecay: 0.055, bassWave: 'sawtooth',
+        leadStyle: 'tumbi', leadRes: 5, delayMix: 0.28, drive: 0.45, kickTune: 50,
+        clapTone: 1900,
+      },
+      levels: { kick: 0.95, clap: 0.5, bass: 0.9, chat: 0.38, ohat: 0.42, lead: 0.65, vox: 0.62, fx: 0.45 },
+      tracks: {
+        kick: tk(KICK4, KICK4),
+        clap: tk(CLAP24, CLAP24),
+        bass: tk(ROLL, [1, 5, 9, 13]),
+        chat: tk(ALL16, OFF8),
+        ohat: tk(OFF8),
+        lead: tk([2, 3, 6, 7, 10, 11, 14], [2, 10], {
+          2: 7, 3: 8, 6: 7, 7: 9, 10: 7, 11: 8, 14: 10,
+        }),
+        vox:  tk([0, 8], [0], { 0: 0, 8: 1 }, { 0: 'oh', 8: 'ah' }),
+        fx:   tk([12]),
+      },
+    }
+  );
+
   PSY.getPreset = (id) => PSY.PRESETS.find((p) => p.id === id) || PSY.PRESETS[0];
 })();

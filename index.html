@@ -27,7 +27,7 @@
 
     <div class="ctl bpm-ctl">
       <label for="bpm">BPM <span id="bpm-val" class="val">145</span></label>
-      <input type="range" id="bpm" min="120" max="160" step="1" value="145">
+      <input type="range" id="bpm" min="90" max="160" step="1" value="145">
     </div>
 
     <div class="ctl">
@@ -109,6 +109,16 @@
   </section>
 
   <div id="grid" class="grid"></div>
+
+  <section class="voxpad panel">
+    <h2 class="panel-title">VOX PAD
+      <span class="pad-hint">tap or keys Q&ndash;I &middot; alt+click pad = vowel &middot; arm REC while playing to punch voices into the VOX row (quantized)</span>
+    </h2>
+    <div class="pad-row">
+      <button id="pad-rec" class="rec-btn" title="Record pad hits into the VOX track, quantized to the nearest 16th">&#9679; REC</button>
+      <div id="pads" class="pads"></div>
+    </div>
+  </section>
 
   <section class="lower">
     <div class="macros panel">

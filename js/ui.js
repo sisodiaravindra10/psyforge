@@ -237,6 +237,83 @@
     }
   }
 
+  /* ---------- VOX pad: play voices live, optionally record into the grid ---------- */
+
+  const PAD_KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i'];
+  const padState = []; // {deg, vowel, el}
+  let padRec = false;
+
+  function buildPads() {
+    const wrap = $('pads');
+    const defaultVowels = ['ah', 'oh', 'oo', 'eh', 'ee', 'ah', 'oh', 'oo'];
+    for (let i = 0; i < 8; i++) {
+      const pad = document.createElement('button');
+      pad.className = 'pad';
+      const note = document.createElement('span');
+      note.className = 'pad-note';
+      const vow = document.createElement('span');
+      vow.className = 'pad-vowel';
+      const key = document.createElement('span');
+      key.className = 'pad-key';
+      key.textContent = PAD_KEYS[i].toUpperCase();
+      pad.append(note, vow, key);
+      pad.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        if (e.altKey) {
+          const v = PSY.VOWELS;
+          padState[i].vowel = v[(v.indexOf(padState[i].vowel) + 1) % v.length];
+          renderPads();
+        } else {
+          padTrigger(i);
+        }
+      });
+      wrap.appendChild(pad);
+      padState.push({ deg: i, vowel: defaultVowels[i], el: pad });
+    }
+
+    $('pad-rec').addEventListener('click', () => {
+      padRec = !padRec;
+      $('pad-rec').classList.toggle('armed', padRec);
+    });
+
+    renderPads();
+  }
+
+  function renderPads() {
+    for (const p of padState) {
+      const midi = seq.rootMidi + 24 + PSY.degreeToSemis(p.deg, seq.scale);
+      p.el.querySelector('.pad-note').textContent = PSY.midiName(midi);
+      p.el.querySelector('.pad-vowel').textContent = p.vowel;
+    }
+  }
+
+  function padTrigger(i) {
+    const p = padState[i];
+    engine.init();
+    const ctx = engine.ctx;
+    if (ctx.state === 'suspended') ctx.resume();
+    const midi = seq.rootMidi + 24 + PSY.degreeToSemis(p.deg, seq.scale);
+    const freq = PSY.midiToFreq(midi);
+    engine.vox(ctx.currentTime, freq, 1, seq.stepDur * 1.7, p.vowel, false);
+    viz.onEvent({ type: 'vox', time: ctx.currentTime, vel: 1, note: p.deg });
+
+    p.el.classList.add('hit');
+    setTimeout(() => p.el.classList.remove('hit'), 130);
+
+    // quantize the hit into the VOX row of the editing pattern, deriving the
+    // nearest step from the scheduler clock (seq.nextTime = time of seq.step)
+    if (padRec && seq.playing) {
+      const k = seq.step + Math.round((ctx.currentTime - seq.nextTime) / seq.stepDur);
+      const idx = ((k % 16) + 16) % 16;
+      const st = seq.pattern.vox[idx];
+      st.on = true;
+      st.vel = 0.95;
+      st.note = p.deg;
+      st.vowel = p.vowel;
+      renderCell('vox', idx);
+    }
+  }
+
   /* ---------- presets ---------- */
 
   // auto-generate B/C/D arrangement variations from the core pattern
@@ -276,6 +353,9 @@
     seq.rootMidi = p.rootMidi;
     seq.scale = p.scale;
     seq.setBpm(p.bpm);
+    seq.swing = p.swing || 0;
+    $('swing').value = Math.round(seq.swing * 100);
+    $('swing-val').textContent = Math.round(seq.swing * 100) + '%';
 
     // reset to genre-neutral defaults first so presets only carry overrides
     const master = engine.params.master;
@@ -306,6 +386,7 @@
 
     selectSlot('A');
     renderChain();
+    renderPads();
   }
 
   /* ---------- transport & controls ---------- */
@@ -341,6 +422,9 @@
         $('viz-style').click();
       } else if (e.key >= '1' && e.key <= '4') {
         selectSlot(PSY.Sequencer.SLOTS[+e.key - 1]);
+      } else {
+        const pi = PAD_KEYS.indexOf(e.key.toLowerCase());
+        if (pi >= 0 && !e.repeat) padTrigger(pi);
       }
     });
 
@@ -364,14 +448,16 @@
     $('root').addEventListener('change', (e) => {
       seq.rootMidi = +e.target.value;
       renderAll();
+      renderPads();
     });
     $('scale').addEventListener('change', (e) => {
       seq.scale = e.target.value;
       renderAll();
+      renderPads();
     });
 
     const presetSel = $('preset');
-    const genreLabels = { psy: 'PSYTRANCE', edm: 'ELECTRONIC / EDM' };
+    const genreLabels = { psy: 'PSYTRANCE', edm: 'ELECTRONIC / EDM', desi: 'DESI / PUNJABI' };
     const groups = {};
     for (const p of PSY.PRESETS) {
       if (!groups[p.genre]) {
@@ -544,6 +630,7 @@
 
   buildGrid();
   buildArrange();
+  buildPads();
   wireControls();
   applyPreset('fullon');
   requestAnimationFrame(loop);
