@@ -11,6 +11,7 @@
         bassCutoff: 780,
         bassDecay: 0.055,
         bassWave: 'sawtooth',
+        bassStyle: 'roll', // 'roll' | 'reese' (dnb) | 'log' (amapiano) | 'reverse' (hardstyle)
         leadStyle: 'saws', // 'acid' | 'saws' | 'fm' | 'pluck' | 'chord'
         leadRes: 6,
         leadEnv: 2600,
@@ -337,8 +338,133 @@
       vib.stop(end);
     }
 
-    // rolling bass: saw/square through 24dB/oct lowpass, fast filter+amp decay
-    bass(t, freq, vel = 1) {
+    // bass dispatcher — psy roll by default, or one of the genre voices
+    bass(t, freq, vel = 1, stepDur = 0.1) {
+      const style = this.params.bassStyle;
+      if (style === 'reese') return this._bassReese(t, freq, vel);
+      if (style === 'log') return this._bassLog(t, freq, vel);
+      if (style === 'reverse') return this._bassReverse(t, freq, vel, stepDur);
+      this._bassRoll(t, freq, vel);
+    }
+
+    // dnb Reese: two saws slowly beating against each other + sub sine
+    _bassReese(t, freq, vel = 1) {
+      const ctx = this.ctx;
+      const p = this.params;
+      const gate = Math.max(0.15, p.bassDecay * 2.4);
+
+      const mix = ctx.createGain();
+      for (const det of [-14, 14]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = freq;
+        o.detune.value = det;
+        o.connect(mix);
+        o.start(t);
+        o.stop(t + gate + 0.15);
+      }
+      const sub = ctx.createOscillator();
+      sub.type = 'sine';
+      sub.frequency.value = freq / 2;
+      const subG = ctx.createGain();
+      subG.gain.value = 0.6;
+      sub.connect(subG);
+      subG.connect(mix);
+      sub.start(t);
+      sub.stop(t + gate + 0.15);
+
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.value = 2;
+      f.frequency.setValueAtTime(p.bassCutoff, t);
+      f.frequency.exponentialRampToValueAtTime(Math.max(120, p.bassCutoff * 0.5), t + gate);
+
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.55 * vel, t + 0.012);
+      g.gain.setValueAtTime(0.55 * vel, t + gate);
+      g.gain.linearRampToValueAtTime(0, t + gate + 0.1);
+
+      mix.connect(f);
+      f.connect(g);
+      g.connect(this.bassDrive);
+    }
+
+    // amapiano log drum: pitched punchy triangle+sine knock
+    _bassLog(t, freq, vel = 1) {
+      const ctx = this.ctx;
+      const p = this.params;
+      const decay = Math.max(0.18, p.bassDecay * 2.2);
+
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      const o2 = ctx.createOscillator();
+      o2.type = 'sine';
+      for (const osc of [o, o2]) {
+        osc.frequency.setValueAtTime(freq * 1.45, t);
+        osc.frequency.exponentialRampToValueAtTime(freq, t + 0.04);
+      }
+      const g2 = ctx.createGain();
+      g2.gain.value = 0.7;
+
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.value = 1.5;
+      f.frequency.setValueAtTime(Math.max(300, p.bassCutoff * 1.3), t);
+      f.frequency.exponentialRampToValueAtTime(200, t + decay);
+
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(1.0 * vel, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+      o.connect(f);
+      o2.connect(g2);
+      g2.connect(f);
+      f.connect(g);
+      g.connect(this.bassDrive);
+      o.start(t);
+      o2.start(t);
+      o.stop(t + decay + 0.05);
+      o2.stop(t + decay + 0.05);
+    }
+
+    // hardstyle reverse bass: swells INTO the next beat, then cuts dead
+    _bassReverse(t, freq, vel = 1, stepDur = 0.1) {
+      const ctx = this.ctx;
+      const p = this.params;
+      const swell = Math.max(0.08, stepDur * 1.5);
+
+      const mix = ctx.createGain();
+      for (const [type, det] of [['sawtooth', -8], ['square', 8]]) {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, t);
+        o.frequency.linearRampToValueAtTime(freq * 1.05, t + swell); // upward lean
+        o.detune.value = det;
+        o.connect(mix);
+        o.start(t);
+        o.stop(t + swell + 0.05);
+      }
+
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.value = 3;
+      f.frequency.setValueAtTime(200, t);
+      f.frequency.exponentialRampToValueAtTime(Math.max(400, p.bassCutoff * 1.4), t + swell);
+
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.8 * vel, t + swell);
+      g.gain.linearRampToValueAtTime(0, t + swell + 0.02); // the cut
+
+      mix.connect(f);
+      f.connect(g);
+      g.connect(this.bassDrive);
+    }
+
+    // rolling psy bass: saw/square through 24dB/oct lowpass, fast filter+amp decay
+    _bassRoll(t, freq, vel = 1) {
       const ctx = this.ctx;
       const p = this.params;
 
@@ -454,6 +580,72 @@
         mod.start(t);
         car.stop(t + 0.25);
         mod.stop(t + 0.25);
+        return;
+      }
+
+      if (style === 'cowbell') {
+        // 808 cowbell: two detuned squares (~1 : 1.48) through a bandpass
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.5 * vel, t + 0.002);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = freq * 1.6;
+        bp.Q.value = 2.5;
+        for (const mult of [1, 1.48]) {
+          const o = ctx.createOscillator();
+          o.type = 'square';
+          o.frequency.value = freq * mult;
+          o.connect(bp);
+          o.start(t);
+          o.stop(t + 0.18);
+        }
+        bp.connect(g);
+        g.connect(out);
+        send.gain.value = Math.min(0.4, p.delayMix * 0.8);
+        return;
+      }
+
+      if (style === 'screech') {
+        // hardstyle screech: hard FM at ~1:1 with vibrato, sustained gate
+        const car = ctx.createOscillator();
+        car.type = 'square';
+        car.frequency.setValueAtTime(freq, t);
+        const mod = ctx.createOscillator();
+        mod.type = 'sine';
+        mod.frequency.setValueAtTime(freq * 1.02, t);
+        const modG = ctx.createGain();
+        modG.gain.setValueAtTime(freq * 9, t);
+        mod.connect(modG);
+        modG.connect(car.frequency);
+
+        const vib = ctx.createOscillator();
+        vib.type = 'sine';
+        vib.frequency.value = 6.5;
+        const vibG = ctx.createGain();
+        vibG.gain.value = freq * 0.035;
+        vib.connect(vibG);
+        vibG.connect(car.frequency);
+
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 400;
+
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.3 * vel, t + 0.008);
+        g.gain.setValueAtTime(0.3 * vel, t + 0.16);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+
+        car.connect(hp);
+        hp.connect(g);
+        g.connect(out);
+        send.gain.value = Math.min(0.5, p.delayMix);
+        for (const o of [car, mod, vib]) {
+          o.start(t);
+          o.stop(t + 0.3);
+        }
         return;
       }
 

@@ -54,6 +54,7 @@
       for (const t of TRACKS) {
         p[t] = Array.from({ length: 16 }, () => ({ on: false, vel: 0.85, note: 0, vowel: 'ah' }));
       }
+      p.auto = {}; // recorded macro automation: {param: [16 values or null]}
       return p;
     }
 
@@ -65,6 +66,7 @@
           ? pat[t].map((s) => ({ ...s }))
           : Array.from({ length: 16 }, () => ({ on: false, vel: 0.85, note: 0, vowel: 'ah' }));
       }
+      p.auto = pat.auto ? JSON.parse(JSON.stringify(pat.auto)) : {};
       return p;
     }
 
@@ -85,11 +87,25 @@
       return this.stepDur * 16;
     }
 
+    // chain entries are {s: 'A', t: semitones} — tolerate legacy plain strings
+    chainEntry(bar) {
+      const c = this.chain[bar % this.chain.length];
+      return typeof c === 'string' ? { s: c, t: 0 } : c;
+    }
+
     slotForBar(bar) {
       if (this.mode === 'song' && this.chain.length) {
-        return this.chain[bar % this.chain.length];
+        return this.chainEntry(bar).s;
       }
       return this.currentSlot;
+    }
+
+    // per-bar chord movement: the whole bar's bass/lead/vox transpose
+    transposeForBar(bar) {
+      if (this.mode === 'song' && this.chain.length) {
+        return this.chainEntry(bar).t || 0;
+      }
+      return 0;
     }
 
     patternForBar(bar) {
@@ -172,7 +188,8 @@
       }
 
       this.events.push({ type: 'step', index: i, time: t });
-      this._trigger(pat, i, t);
+      this._applyAuto(pat, i, t);
+      this._trigger(pat, i, t, this.transposeForBar(bar));
 
       if (this.buildActive) {
         // accelerating roll: 8ths -> 16ths -> 32nds, rising velocity/pitch
@@ -195,58 +212,85 @@
       this.events.push({ type: 'snare', time: t, vel });
     }
 
-    // trigger one step of a pattern — also used by the offline WAV renderer
-    _trigger(pat, i, t) {
+    // replay recorded macro automation for this step (shared with export)
+    _applyAuto(pat, i, t) {
+      if (!pat.auto) return;
+      for (const param in pat.auto) {
+        const v = pat.auto[param][i];
+        if (v != null) {
+          this.engine.setParam(param, v);
+          this.events.push({ type: 'auto', time: t, param, value: v });
+        }
+      }
+    }
+
+    // trigger one step of a pattern — also used by the offline WAV renderer.
+    // Each step honors probability (skip chance) and ratchet (N retrigger
+    // sub-hits within the step); `trans` is the bar's chord-movement offset.
+    _trigger(pat, i, t, trans = 0) {
       const eng = this.engine;
-      if (pat.kick[i].on) {
-        eng.kick(t, pat.kick[i].vel);
+      const stepDur = this.stepDur;
+
+      // fire fn once per ratchet sub-hit; returns false if probability skips
+      const each = (st, fn) => {
+        const prob = st.prob === undefined ? 1 : st.prob;
+        if (prob < 1 && Math.random() > prob) return false;
+        const n = st.ratchet || 1;
+        for (let r = 0; r < n; r++) {
+          fn(t + (r * stepDur) / n, Math.max(0.2, st.vel * (1 - r * 0.12)));
+        }
+        return true;
+      };
+
+      if (pat.kick[i].on && each(pat.kick[i], (tt, vv) => eng.kick(tt, vv))) {
         this.events.push({ type: 'kick', time: t, vel: pat.kick[i].vel });
       }
-      if (pat.clap[i].on) {
-        eng.clap(t, pat.clap[i].vel);
+      if (pat.clap[i].on && each(pat.clap[i], (tt, vv) => eng.clap(tt, vv))) {
         this.events.push({ type: 'clap', time: t, vel: pat.clap[i].vel });
       }
       if (pat.bass[i].on) {
-        const midi = this.rootMidi + PSY.degreeToSemis(pat.bass[i].note, this.scale);
-        eng.bass(t, PSY.midiToFreq(midi), pat.bass[i].vel);
-        this.events.push({ type: 'bass', time: t, vel: pat.bass[i].vel });
+        const midi = this.rootMidi + trans + PSY.degreeToSemis(pat.bass[i].note, this.scale);
+        const freq = PSY.midiToFreq(midi);
+        if (each(pat.bass[i], (tt, vv) => eng.bass(tt, freq, vv, stepDur))) {
+          this.events.push({ type: 'bass', time: t, vel: pat.bass[i].vel });
+        }
       }
-      if (pat.chat[i].on) {
-        eng.hat(t, pat.chat[i].vel, false);
+      if (pat.chat[i].on && each(pat.chat[i], (tt, vv) => eng.hat(tt, vv, false))) {
         this.events.push({ type: 'chat', time: t, vel: pat.chat[i].vel });
       }
-      if (pat.ohat[i].on) {
-        eng.hat(t, pat.ohat[i].vel, true);
+      if (pat.ohat[i].on && each(pat.ohat[i], (tt, vv) => eng.hat(tt, vv, true))) {
         this.events.push({ type: 'ohat', time: t, vel: pat.ohat[i].vel });
       }
       if (pat.lead[i].on) {
         const deg = pat.lead[i].note;
+        let fired;
         if (eng.params.leadStyle === 'chord') {
           // stack a triad within the current scale on the step's degree
           const freqs = [deg, deg + 2, deg + 4].map((d) =>
-            PSY.midiToFreq(this.rootMidi + 24 + PSY.degreeToSemis(d, this.scale))
+            PSY.midiToFreq(this.rootMidi + 24 + trans + PSY.degreeToSemis(d, this.scale))
           );
-          eng.lead(t, freqs, pat.lead[i].vel);
+          fired = each(pat.lead[i], (tt, vv) => eng.lead(tt, freqs, vv));
         } else {
-          const midi = this.rootMidi + 24 + PSY.degreeToSemis(deg, this.scale);
+          const midi = this.rootMidi + 24 + trans + PSY.degreeToSemis(deg, this.scale);
+          const freq = PSY.midiToFreq(midi);
           const prev = pat.lead[(i + 15) % 16];
-          eng.lead(t, PSY.midiToFreq(midi), pat.lead[i].vel, prev.on); // auto-glide off consecutive notes
+          fired = each(pat.lead[i], (tt, vv) => eng.lead(tt, freq, vv, prev.on)); // auto-glide off consecutive notes
         }
-        this.events.push({ type: 'lead', time: t, vel: pat.lead[i].vel, note: deg });
+        if (fired) this.events.push({ type: 'lead', time: t, vel: pat.lead[i].vel, note: deg });
       }
       if (pat.vox[i].on) {
         const deg = pat.vox[i].note;
-        const midi = this.rootMidi + 24 + PSY.degreeToSemis(deg, this.scale);
+        const midi = this.rootMidi + 24 + trans + PSY.degreeToSemis(deg, this.scale);
+        const freq = PSY.midiToFreq(midi);
         const prev = pat.vox[(i + 15) % 16];
-        eng.vox(t, PSY.midiToFreq(midi), pat.vox[i].vel, this.stepDur * 1.7, pat.vox[i].vowel, prev.on);
-        this.events.push({ type: 'vox', time: t, vel: pat.vox[i].vel, note: deg });
+        if (each(pat.vox[i], (tt, vv) => eng.vox(tt, freq, vv, stepDur * 1.7, pat.vox[i].vowel, prev.on))) {
+          this.events.push({ type: 'vox', time: t, vel: pat.vox[i].vel, note: deg });
+        }
       }
-      if (pat.voice[i].on) {
-        eng.voice(t, pat.voice[i].note, pat.voice[i].vel);
+      if (pat.voice[i].on && each(pat.voice[i], (tt, vv) => eng.voice(tt, pat.voice[i].note, vv))) {
         this.events.push({ type: 'voice', time: t, vel: pat.voice[i].vel, note: pat.voice[i].note });
       }
-      if (pat.fx[i].on) {
-        eng.zap(t, pat.fx[i].vel, i);
+      if (pat.fx[i].on && each(pat.fx[i], (tt, vv) => eng.zap(tt, vv, i))) {
         this.events.push({ type: 'fx', time: t, vel: pat.fx[i].vel });
       }
     }

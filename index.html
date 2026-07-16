@@ -27,7 +27,7 @@
 
     <div class="ctl bpm-ctl">
       <label for="bpm">BPM <span id="bpm-val" class="val">145</span></label>
-      <input type="range" id="bpm" min="90" max="160" step="1" value="145">
+      <input type="range" id="bpm" min="90" max="180" step="1" value="145">
     </div>
 
     <div class="ctl">
@@ -55,6 +55,9 @@
         <option value="phrygianDom">Phrygian Dominant</option>
         <option value="harmonicMinor">Harmonic Minor</option>
         <option value="minor">Natural Minor</option>
+        <option value="major">Major</option>
+        <option value="mixolydian">Mixolydian</option>
+        <option value="doubleHarmonic">Bhairav (Dbl Harm)</option>
       </select>
     </div>
 
@@ -107,6 +110,18 @@
       <div id="chain-add" class="chain-add"></div>
     </div>
   </section>
+
+  <div class="genbar">
+    <span class="arr-label">GENERATE</span>
+    <select id="gen-track" title="Track to write the euclidean rhythm into"></select>
+    <label class="gen-lbl">HITS <input type="number" id="gen-hits" min="1" max="16" value="5"></label>
+    <label class="gen-lbl">ROT <input type="number" id="gen-rot" min="0" max="15" value="0"></label>
+    <button id="gen-euclid" class="mini-btn" title="Spread HITS evenly across 16 steps (euclidean rhythm) on the selected track">EUCLID</button>
+    <button id="gen-dice" class="mini-btn" title="Write a random scale-locked melody into the LEAD track">&#127922; MELODY</button>
+    <span class="gen-sep"></span>
+    <button id="auto-rec" class="rec-btn auto-btn" title="Arm, then move SOUND DESIGN sliders while playing — the movement records into this pattern and replays every loop">&#9679; AUTO</button>
+    <button id="auto-clr" class="mini-btn" title="Clear recorded automation from this pattern">CLR AUTO</button>
+  </div>
 
   <div id="grid" class="grid"></div>
 
@@ -183,6 +198,9 @@
         <span><b>V</b> visual style</span>
         <span><b>1-4</b> pattern A&ndash;D</span>
         <span><b>drag</b> A&ndash;D tabs into SONG = build the set</span>
+        <span><b>scroll</b> a SONG block = shift its key (chord movement)</span>
+        <span><b>right-click</b> a step = ratchet &times;2&ndash;&times;4</span>
+        <span><b>cmd+scroll</b> a step = probability</span>
         <span><b>drop</b> an audio file on FRED MODE = load a voice</span>
       </p>
     </div>

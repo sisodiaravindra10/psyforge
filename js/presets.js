@@ -6,11 +6,23 @@
   const PSY = (window.PSY = window.PSY || {});
 
   PSY.SCALES = {
-    phrygian:      { name: 'Phrygian',           steps: [0, 1, 3, 5, 7, 8, 10] },
-    phrygianDom:   { name: 'Phrygian Dominant',  steps: [0, 1, 4, 5, 7, 8, 10] },
-    harmonicMinor: { name: 'Harmonic Minor',     steps: [0, 2, 3, 5, 7, 8, 11] },
-    minor:         { name: 'Natural Minor',      steps: [0, 2, 3, 5, 7, 8, 10] },
-    major:         { name: 'Major',              steps: [0, 2, 4, 5, 7, 9, 11] },
+    phrygian:       { name: 'Phrygian',           steps: [0, 1, 3, 5, 7, 8, 10] },
+    phrygianDom:    { name: 'Phrygian Dominant',  steps: [0, 1, 4, 5, 7, 8, 10] },
+    harmonicMinor:  { name: 'Harmonic Minor',     steps: [0, 2, 3, 5, 7, 8, 11] },
+    minor:          { name: 'Natural Minor',      steps: [0, 2, 3, 5, 7, 8, 10] },
+    major:          { name: 'Major',              steps: [0, 2, 4, 5, 7, 9, 11] },
+    mixolydian:     { name: 'Mixolydian',         steps: [0, 2, 4, 5, 7, 9, 10] },
+    doubleHarmonic: { name: 'Bhairav (Dbl Harm)', steps: [0, 1, 4, 5, 7, 8, 11] },
+  };
+
+  // euclidean rhythm: distribute `hits` onsets as evenly as possible over `steps`
+  PSY.euclid = (hits, steps = 16, rot = 0) => {
+    const arr = [];
+    for (let i = 0; i < steps; i++) {
+      const j = (((i - rot) % steps) + steps) % steps;
+      arr.push((j * hits) % steps < hits);
+    }
+    return arr;
   };
 
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -369,6 +381,222 @@
         }),
         vox:  tk([0, 8], [0], { 0: 0, 8: 1 }, { 0: 'oh', 8: 'ah' }),
         fx:   tk([12]),
+      },
+    }
+  );
+
+  /* ============ EDM: TRANCE + HARDSTYLE ============ */
+  PSY.PRESETS.push(
+    {
+      id: 'trance',
+      genre: 'edm',
+      name: 'Uplift 138',
+      artist: 'Armin / ASOT-style uplifting trance',
+      bpm: 138,
+      rootMidi: 28,
+      scale: 'minor',
+      palette: { h1: 220, h2: 330, sym: 12 },
+      desc: 'Classic uplifting trance in the style of <b>Armin van Buuren</b> and the ASOT era: offbeat bass pumping under a driving 8th-note supersaw line, claps riding 2 & 4, everything soaked in delay. Hands up at 138.',
+      engine: {
+        kickAttack: 600, kickDecay: 0.3, kickTune: 48,
+        duckDepth: 0.35, duckRelease: 0.2,
+        bassCutoff: 680, bassDecay: 0.18, bassWave: 'sawtooth',
+        leadStyle: 'saws', leadRes: 4, delayMix: 0.35, drive: 0.35,
+      },
+      levels: { kick: 0.95, clap: 0.5, bass: 0.9, chat: 0.3, ohat: 0.4, lead: 0.6, vox: 0.55, fx: 0.4 },
+      tracks: {
+        kick: tk(KICK4, KICK4),
+        clap: tk(CLAP24, CLAP24),
+        bass: tk(OFF8, OFF8),
+        chat: tk(ALL16),
+        ohat: tk(OFF8),
+        lead: tk(EIGHTHS, [0, 8], { 0: 0, 2: 4, 4: 3, 6: 4, 8: 5, 10: 4, 12: 3, 14: 1 }),
+        vox:  tk([15], [], { 15: 7 }, { 15: 'ah' }),
+        fx:   tk([]),
+      },
+    },
+    {
+      id: 'hardstyle',
+      genre: 'edm',
+      name: 'Hard Mode',
+      artist: 'Headhunterz / Wildstylez-style hardstyle',
+      bpm: 150,
+      rootMidi: 29, // F1
+      scale: 'phrygian',
+      palette: { h1: 0, h2: 55, sym: 8 },
+      desc: 'Mainstage hardstyle in the style of <b>Headhunterz</b> and <b>Wildstylez</b>: a punchy kick answered by the signature <b>reverse bass</b> swelling into every offbeat, and distorted screech stabs on top. 150 BPM of stomp.',
+      engine: {
+        kickAttack: 2200, kickDecay: 0.34, kickTune: 55,
+        duckDepth: 0.5, duckRelease: 0.12,
+        bassStyle: 'reverse', bassCutoff: 900, bassDecay: 0.3, bassWave: 'sawtooth',
+        leadStyle: 'screech', leadRes: 8, delayMix: 0.22, drive: 0.7,
+      },
+      levels: { kick: 1.0, clap: 0.45, bass: 0.9, chat: 0.3, ohat: 0.35, lead: 0.55, vox: 0.5, fx: 0.4 },
+      tracks: {
+        kick: tk(KICK4, KICK4),
+        clap: tk(CLAP24),
+        bass: tk(OFF8, OFF8),
+        chat: tk(EIGHTHS),
+        ohat: tk([]),
+        lead: tk([2, 6, 10, 14], [2, 6, 10, 14], { 2: 0, 6: 1, 10: 0, 14: 3 }),
+        vox:  tk([]),
+        fx:   tk([0]),
+      },
+    }
+  );
+
+  /* ============ BASS & BREAKS ============ */
+  PSY.PRESETS.push(
+    {
+      id: 'dnb',
+      genre: 'bass',
+      name: 'Neuro Roller',
+      artist: 'Pendulum / Noisia-style drum & bass',
+      bpm: 174,
+      rootMidi: 28,
+      scale: 'minor',
+      palette: { h1: 150, h2: 210, sym: 8 },
+      desc: 'Drum & bass in the style of <b>Pendulum</b> and <b>Noisia</b>: the two-step break (kick displaced, snares cracking 2 & 4) over a detuned <b>Reese bass</b> — two saws beating against each other through the filter. 174 BPM, half-time heads, full-time feet.',
+      engine: {
+        kickAttack: 900, kickDecay: 0.2, kickTune: 52,
+        duckDepth: 0.55, duckRelease: 0.08,
+        bassStyle: 'reese', bassCutoff: 480, bassDecay: 0.3, bassWave: 'sawtooth',
+        leadStyle: 'fm', leadRes: 6, delayMix: 0.25, drive: 0.5,
+        clapTone: 1500,
+      },
+      levels: { kick: 0.95, clap: 0.65, bass: 0.95, chat: 0.32, ohat: 0.35, lead: 0.5, vox: 0.5, fx: 0.4 },
+      tracks: {
+        kick: tk([0, 10], [0, 10]),
+        clap: tk(CLAP24, CLAP24),
+        bass: tk([0, 6, 8, 14], [0, 8], { 0: 0, 6: 0, 8: 1, 14: 0 }),
+        chat: tk(ALL16, [2, 6, 10, 14]),
+        ohat: tk([7, 15]),
+        lead: tk([3, 11], [], { 3: 7, 11: 8 }),
+        vox:  tk([]),
+        fx:   tk([13]),
+      },
+    },
+    {
+      id: 'ukgarage',
+      genre: 'bass',
+      name: '2-Step Shuffle',
+      artist: 'MJ Cole / Artful Dodger-style UK garage',
+      bpm: 132,
+      rootMidi: 28,
+      scale: 'mixolydian',
+      palette: { h1: 260, h2: 190, sym: 6 },
+      desc: 'UK garage in the style of <b>MJ Cole</b> and <b>Artful Dodger</b>: the 2-step kick (beat two goes missing), skippy swung hats, warm sub stabs — and chopped vocal syllables bouncing through the gaps, which is exactly what the VOX track was born for. Heavy shuffle.',
+      swing: 0.22,
+      engine: {
+        kickAttack: 700, kickDecay: 0.22, kickTune: 50,
+        duckDepth: 0.6, duckRelease: 0.1,
+        bassCutoff: 550, bassDecay: 0.12, bassWave: 'sawtooth',
+        leadStyle: 'pluck', leadRes: 3, delayMix: 0.3, drive: 0.35,
+        clapTone: 1600,
+      },
+      levels: { kick: 0.95, clap: 0.6, bass: 0.9, chat: 0.38, ohat: 0.4, lead: 0.5, vox: 0.68, fx: 0.4 },
+      tracks: {
+        kick: tk([0, 7, 10], [0]),
+        clap: tk(CLAP24, [12]),
+        bass: tk([2, 5, 11, 14], [2], { 2: 0, 5: 0, 11: 1, 14: 4 }),
+        chat: tk([2, 3, 6, 10, 11, 14], [3, 11]),
+        ohat: tk([2, 10]),
+        lead: tk([8], [], { 8: 4 }),
+        vox:  tk([3, 6, 11, 15], [3, 11], { 3: 7, 6: 9, 11: 8, 15: 5 }, { 3: 'oh', 6: 'eh', 11: 'ah', 15: 'oo' }),
+        fx:   tk([]),
+      },
+    },
+    {
+      id: 'phonk',
+      genre: 'bass',
+      name: 'Memphis Drift',
+      artist: 'Drift phonk / Memphis rap style',
+      bpm: 130,
+      rootMidi: 28,
+      scale: 'minor',
+      palette: { h1: 280, h2: 0, sym: 6 },
+      desc: 'Drift phonk: the half-time backbeat (one lonely snare on beat 3), an 808-style boomy bass, low chant vocals — and the signature <b>cowbell melody</b> riding on top like it\'s 1994 in Memphis. Night drives only.',
+      swing: 0.05,
+      engine: {
+        kickAttack: 500, kickDecay: 0.35, kickTune: 47,
+        duckDepth: 0.55, duckRelease: 0.15,
+        bassStyle: 'log', bassCutoff: 800, bassDecay: 0.3, bassWave: 'sawtooth',
+        leadStyle: 'cowbell', leadRes: 4, delayMix: 0.18, drive: 0.6,
+        clapTone: 1300,
+      },
+      levels: { kick: 1.0, clap: 0.6, bass: 0.9, chat: 0.3, ohat: 0.25, lead: 0.6, vox: 0.55, fx: 0.4 },
+      tracks: {
+        kick: tk([0, 10], [0]),
+        clap: tk([8], [8]),
+        bass: tk([0, 10], [0], { 0: 0, 10: 1 }),
+        chat: tk(EIGHTHS, [14]),
+        ohat: tk([]),
+        lead: tk([0, 2, 4, 5, 8, 10, 12, 13], [0, 8], { 0: 7, 2: 7, 4: 10, 5: 9, 8: 7, 10: 5, 12: 4, 13: 7 }),
+        vox:  tk([6, 14], [], { 6: 1, 14: 0 }, { 6: 'oh', 14: 'ah' }),
+        fx:   tk([]),
+      },
+    }
+  );
+
+  /* ============ GLOBAL GROOVES ============ */
+  PSY.PRESETS.push(
+    {
+      id: 'amapiano',
+      genre: 'global',
+      name: 'Yano Groove',
+      artist: 'Kabza De Small-style amapiano',
+      bpm: 115,
+      rootMidi: 33, // A1
+      scale: 'minor',
+      palette: { h1: 140, h2: 32, sym: 6 },
+      desc: 'Amapiano in the style of <b>Kabza De Small</b> and <b>DBN Gogo</b>: the sparse kick leaves all the room to the <b>log drum</b> — that bouncing pitched bass that IS the genre — with soft chord stabs, shakers, and airy vocal sighs. Yanos, 115 BPM.',
+      swing: 0.08,
+      engine: {
+        kickAttack: 300, kickDecay: 0.4, kickTune: 45,
+        duckDepth: 0.5, duckRelease: 0.18,
+        bassStyle: 'log', bassCutoff: 950, bassDecay: 0.13, bassWave: 'sawtooth',
+        leadStyle: 'chord', leadRes: 2, delayMix: 0.22, drive: 0.5,
+      },
+      levels: { kick: 0.9, clap: 0.5, bass: 0.95, chat: 0.35, ohat: 0.35, lead: 0.45, vox: 0.6, fx: 0.4 },
+      tracks: {
+        kick: tk([0, 8], [0]),
+        clap: tk([4, 12]),
+        bass: tk([2, 3, 6, 10, 11, 14], [2, 10], { 2: 0, 3: 0, 6: 3, 10: 4, 11: 3, 14: 1 }),
+        chat: tk(EIGHTHS, [6, 14]),
+        ohat: tk([2, 10]),
+        lead: tk([0, 10], [], { 0: 0, 10: 3 }),
+        vox:  tk([7, 15], [], { 7: 7, 15: 4 }, { 7: 'oo', 15: 'ah' }),
+        fx:   tk([]),
+      },
+    },
+    {
+      id: 'garba',
+      genre: 'desi',
+      name: 'Raga Garba',
+      artist: 'Navratri garba / raga Bhairav flavor',
+      bpm: 108,
+      rootMidi: 26, // D1
+      scale: 'doubleHarmonic',
+      palette: { h1: 320, h2: 42, sym: 12 },
+      desc: 'Navratri energy: the garba gallop on a rounded dhol kick, high dandiya stick clicks, and a tumbi line snaking through <b>raga Bhairav</b> (the double-harmonic scale — both the b2 and the major 7, maximum exotic tension). Spin accordingly. 108 BPM, swung.',
+      swing: 0.18,
+      engine: {
+        kickAttack: 260, kickDecay: 0.28, kickTune: 57,
+        duckDepth: 0.6, duckRelease: 0.1,
+        bassCutoff: 620, bassDecay: 0.16, bassWave: 'sawtooth',
+        leadStyle: 'tumbi', leadRes: 4, delayMix: 0.2, drive: 0.4,
+        clapTone: 2600,
+      },
+      levels: { kick: 0.95, clap: 0.55, bass: 0.85, chat: 0.3, ohat: 0.3, lead: 0.65, vox: 0.6, fx: 0.4 },
+      tracks: {
+        kick: tk([0, 3, 6, 8, 11, 14], [0, 8]),
+        clap: tk([2, 6, 10, 14], [6, 14]),
+        bass: tk([0, 6, 8, 14], [0], { 0: 0, 6: 0, 8: 0, 14: 4 }),
+        chat: tk(EIGHTHS),
+        ohat: tk([4, 12]),
+        lead: tk([0, 2, 4, 6, 8, 10, 12, 14], [0, 8], { 0: 7, 2: 8, 4: 9, 6: 8, 8: 7, 10: 9, 12: 11, 14: 8 }),
+        vox:  tk([3, 11], [3], { 3: 9, 11: 7 }, { 3: 'eh', 11: 'oh' }),
+        fx:   tk([]),
       },
     }
   );

@@ -34,6 +34,13 @@ scale, and rhythm archetypes:
 | Festival Choir | Swedish House Mafia / Alesso | 126 |
 | Punjabi Dhol | Panjabi MC / Diljit-style bhangra | 102 |
 | Desi Psy Fusion | Bhangra × full-on psytrance | 145 |
+| Uplift 138 | Armin / ASOT-style uplifting trance | 138 |
+| Hard Mode | Headhunterz-style hardstyle (reverse bass, screech) | 150 |
+| Neuro Roller | Pendulum / Noisia-style drum & bass (Reese) | 174 |
+| 2-Step Shuffle | MJ Cole-style UK garage (heavy swing, vox chops) | 132 |
+| Memphis Drift | Drift phonk (cowbell melody, half-time) | 130 |
+| Yano Groove | Kabza De Small-style amapiano (log drum) | 115 |
+| Raga Garba | Navratri garba in raga Bhairav | 108 |
 
 Patterns are original, written in the style of each artist — rhythm archetypes
 and sound design character, not copies. The EDM presets swap the tight psy
@@ -114,6 +121,30 @@ the WAV export too.
 - **TYPE box** (bottom-left of the visualizer) — up to 12 letters/digits, rendered
   as beat-reactive LED-wall pixel letters over the shader: columns ripple with
   the bass, the word breathes on the kick, hues run along the letters
+
+## Musical tools
+
+- **Per-bar chord movement** — scroll on any SONG chain block to shift that
+  bar's key (±12 semitones, shown as a badge). Bass, lead and vox transpose;
+  the kick stays put. i → VI → III → VII progressions in a scroll.
+- **Ratchets** — right-click a lit step to cycle ×2/×3/×4 retriggers within
+  the step (psy stutter-fills, hat rolls).
+- **Step probability** — cmd/ctrl+scroll a lit step: 100/75/50/25% chance it
+  fires each loop. The cell dims to match. Generative variation, every bar
+  different.
+- **EUCLID generator** — pick a track, set HITS and ROT: the hits distribute
+  as evenly as possible across 16 steps (Bjorklund). This one algorithm
+  produces bhangra, Afro-Cuban, techno and DnB figures.
+- **🎲 MELODY dice** — writes a scale-locked random melody (euclidean rhythm,
+  mostly stepwise motion) into the lead. Reroll until it sings.
+- **AUTO automation** — arm ● AUTO, play, and move the SOUND DESIGN sliders:
+  the movement records into the current pattern (per 16th) and replays every
+  loop — filter sweeps that stay. CLR AUTO wipes it. Automation renders into
+  the WAV export.
+- **Synth styles** — bass: psy roll / **Reese** (dnb) / **log drum**
+  (amapiano) / **reverse** (hardstyle); leads: acid / saws / FM / pluck /
+  chord / tumbi / **cowbell** (phonk) / **screech** (hardstyle). Scales now
+  include Major, Mixolydian and **Bhairav** (double harmonic).
 
 ## Arrangement & song mode
 

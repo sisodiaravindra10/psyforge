@@ -368,7 +368,23 @@ input[type="range"]::-moz-range-thumb {
 
 .chain-block:hover { transform: scale(1.12); }
 
-.chain-block { cursor: grab; }
+.chain-block { cursor: grab; position: relative; }
+
+/* per-bar key-shift badge (chord movement) */
+.chain-block .tbadge {
+  position: absolute;
+  top: -7px;
+  right: -6px;
+  font-style: normal;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: var(--acid);
+  color: #0a1400;
+  box-shadow: 0 0 6px rgba(182, 255, 0, 0.6);
+  pointer-events: none;
+}
 .chain-block.dragging { opacity: 0.35; cursor: grabbing; }
 .chain-block.drop-before { box-shadow: -4px 0 0 0 var(--acid), 0 0 10px rgba(182, 255, 0, 0.4); }
 .chain.drop-end { box-shadow: inset -4px 0 0 var(--acid); border-color: var(--acid); }
@@ -491,6 +507,58 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .mini-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+/* ============ generator bar ============ */
+
+.genbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 10px 18px;
+  background: linear-gradient(180deg, rgba(20, 13, 41, 0.55), rgba(11, 7, 25, 0.65));
+  border: 1px solid var(--panel-edge);
+  border-radius: 12px;
+}
+
+.genbar select {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.gen-lbl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+}
+
+.gen-lbl input[type="number"] {
+  width: 46px;
+  padding: 5px 6px;
+  background: var(--cell);
+  border: 1px solid var(--cell-edge);
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  outline: none;
+}
+
+.gen-sep { flex: 1; }
+
+.auto-btn { width: auto; padding: 6px 12px; height: auto; font-size: 11px; }
+
+.macro.automated label::after {
+  content: '●';
+  color: var(--acid);
+  margin-left: 6px;
+  text-shadow: 0 0 8px var(--acid);
+}
 
 /* ============ sequencer grid ============ */
 
@@ -625,6 +693,18 @@ body.thump .viz-wrap {
 .cell.playhead {
   outline: 2px solid rgba(255, 255, 255, 0.85);
   outline-offset: -2px;
+}
+
+/* ratchet marker: ×2/×3/×4 retrigger count in the cell corner */
+.cell[data-ratchet]:not([data-ratchet=""])::after {
+  content: '×' attr(data-ratchet);
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
 }
 
 .cell.playhead.on { box-shadow: 0 0 26px var(--tc), inset 0 0 12px rgba(255,255,255,0.6); }

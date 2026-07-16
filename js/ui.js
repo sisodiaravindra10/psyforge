@@ -112,16 +112,32 @@
             renderCell(track, i);
           }
         });
-        if (meta.pitched || meta.slice) {
-          cell.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const st = seq.pattern[track][i];
-            const d = e.deltaY < 0 ? 1 : -1;
-            const max = meta.slice ? 7 : PSY.MAX_DEGREE;
-            st.note = Math.max(0, Math.min(max, st.note + d));
+        // right-click cycles ratchet: 1 -> 2 -> 3 -> 4 hits per step
+        cell.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          const st = seq.pattern[track][i];
+          if (!st.on) return;
+          st.ratchet = ((st.ratchet || 1) % 4) + 1;
+          renderCell(track, i);
+        });
+        cell.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          const st = seq.pattern[track][i];
+          if (e.metaKey || e.ctrlKey) {
+            // cmd/ctrl+scroll cycles step probability: 100/75/50/25%
+            if (!st.on) return;
+            const seqP = [1, 0.75, 0.5, 0.25];
+            const cur = seqP.indexOf(st.prob === undefined ? 1 : st.prob);
+            st.prob = seqP[(cur + (e.deltaY < 0 ? 3 : 1)) % 4];
             renderCell(track, i);
-          }, { passive: false });
-        }
+            return;
+          }
+          if (!meta.pitched && !meta.slice) return;
+          const d = e.deltaY < 0 ? 1 : -1;
+          const max = meta.slice ? 7 : PSY.MAX_DEGREE;
+          st.note = Math.max(0, Math.min(max, st.note + d));
+          renderCell(track, i);
+        }, { passive: false });
 
         row.appendChild(cell);
         cells[track].push(cell);
@@ -137,6 +153,9 @@
     const el = cells[track][i];
     el.classList.toggle('on', st.on);
     el.classList.toggle('accent', st.on && st.vel > 1);
+    el.dataset.ratchet = st.on && (st.ratchet || 1) > 1 ? st.ratchet : '';
+    const prob = st.prob === undefined ? 1 : st.prob;
+    el.style.opacity = st.on && prob < 1 ? String(0.45 + 0.55 * prob) : '';
     const meta = TRACK_META[track];
     if (meta.pitched) {
       const base = track === 'bass' ? seq.rootMidi : seq.rootMidi + 24;
@@ -172,7 +191,7 @@
 
   function chainInsert(slot, idx) {
     idx = Math.max(0, Math.min(seq.chain.length, idx));
-    seq.chain.splice(idx, 0, slot);
+    seq.chain.splice(idx, 0, { s: slot, t: 0 });
     renderChain();
   }
 
@@ -261,7 +280,7 @@
       b.textContent = '+' + s;
       b.title = 'Append one bar of pattern ' + s;
       b.addEventListener('click', () => {
-        seq.chain.push(s);
+        seq.chain.push({ s, t: 0 });
         renderChain();
       });
       add.appendChild(b);
@@ -288,11 +307,28 @@
   function renderChain() {
     const el = $('chain');
     el.innerHTML = '';
-    seq.chain.forEach((s, idx) => {
+    // normalize legacy string entries to {s, t} objects in place
+    seq.chain.forEach((c, i) => {
+      if (typeof c === 'string') seq.chain[i] = { s: c, t: 0 };
+    });
+    seq.chain.forEach((entry, idx) => {
+      const s = entry.s;
       const b = document.createElement('button');
       b.className = 'chain-block slot-' + s;
       b.textContent = s;
-      b.title = 'bar ' + (idx + 1) + ' — drag to move, click to remove';
+      if (entry.t) {
+        const badge = document.createElement('i');
+        badge.className = 'tbadge';
+        badge.textContent = (entry.t > 0 ? '+' : '') + entry.t;
+        b.appendChild(badge);
+      }
+      b.title = 'bar ' + (idx + 1) + (entry.t ? ' (key ' + (entry.t > 0 ? '+' : '') + entry.t + ' st)' : '') +
+        ' — drag to move, click to remove, scroll to shift key';
+      b.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        entry.t = Math.max(-12, Math.min(12, (entry.t || 0) + (e.deltaY < 0 ? 1 : -1)));
+        renderChain();
+      }, { passive: false });
       b.draggable = true;
       b.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('text/psy-move', String(idx));
@@ -317,6 +353,80 @@
     for (let i = 0; i < blocks.length; i++) {
       blocks[i].classList.toggle('playing', i === idx);
     }
+  }
+
+  /* ---------- generators: euclidean rhythms + melody dice + automation ---------- */
+
+  let autoRec = false;
+
+  function wireGenerators() {
+    const trackSel = $('gen-track');
+    for (const t of PSY.Sequencer.TRACKS) {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = TRACK_META[t].label;
+      trackSel.appendChild(opt);
+    }
+
+    $('gen-euclid').addEventListener('click', () => {
+      const track = trackSel.value;
+      const hits = Math.max(1, Math.min(16, +$('gen-hits').value || 5));
+      const rot = Math.max(0, Math.min(15, +$('gen-rot').value || 0));
+      const rhythm = PSY.euclid(hits, 16, rot);
+      seq.pattern[track].forEach((st, i) => (st.on = rhythm[i]));
+      renderAll();
+    });
+
+    $('gen-dice').addEventListener('click', () => {
+      // scale-locked random melody: euclidean rhythm + mostly stepwise walk
+      const hits = 6 + Math.floor(Math.random() * 5);
+      const rhythm = PSY.euclid(hits, 16, Math.floor(Math.random() * 16));
+      let deg = 4 + Math.floor(Math.random() * 4);
+      seq.pattern.lead.forEach((st, i) => {
+        st.on = rhythm[i];
+        if (!rhythm[i]) return;
+        const r = Math.random();
+        deg += r < 0.4 ? -1 : r < 0.75 ? 1 : r < 0.85 ? -3 : r < 0.95 ? 2 : 4;
+        deg = Math.max(0, Math.min(PSY.MAX_DEGREE, deg));
+        st.note = deg;
+        st.vel = i % 4 === 0 ? 1.2 : 0.85;
+      });
+      renderAll();
+    });
+
+    $('auto-rec').addEventListener('click', () => {
+      autoRec = !autoRec;
+      $('auto-rec').classList.toggle('armed', autoRec);
+    });
+
+    $('auto-clr').addEventListener('click', () => {
+      seq.pattern.auto = {};
+      document.querySelectorAll('.macro.automated').forEach((m) => m.classList.remove('automated'));
+    });
+  }
+
+  // macro slider binding with optional automation capture
+  const MACRO_MAP = {
+    'm-cutoff': { param: 'bassCutoff', scale: 1 },
+    'm-decay': { param: 'bassDecay', scale: 1 / 1000 },
+    'm-res': { param: 'leadRes', scale: 1 },
+    'm-delay': { param: 'delayMix', scale: 1 / 100 },
+    'm-drive': { param: 'drive', scale: 1 / 100 },
+  };
+
+  function bindMacro(id) {
+    const { param, scale } = MACRO_MAP[id];
+    $(id).addEventListener('input', (e) => {
+      const value = +e.target.value * scale;
+      engine.setParam(param, value);
+      if (autoRec && seq.playing && engine.ctx) {
+        const k = seq.step + Math.round((engine.ctx.currentTime - seq.nextTime) / seq.stepDur);
+        const idx = ((k % 16) + 16) % 16;
+        if (!seq.pattern.auto[param]) seq.pattern.auto[param] = Array(16).fill(null);
+        seq.pattern.auto[param][idx] = value;
+        e.target.closest('.macro').classList.add('automated');
+      }
+    });
   }
 
   /* ---------- VOX pad: play voices live, optionally record into the grid ---------- */
@@ -637,7 +747,8 @@
     seq.patterns.B = B;
     seq.patterns.C = C;
     seq.patterns.D = D;
-    seq.chain = ['B', 'B', 'A', 'A', 'D', 'D', 'D', 'D', 'C', 'C', 'D', 'D'];
+    seq.chain = ['B', 'B', 'A', 'A', 'D', 'D', 'D', 'D', 'C', 'C', 'D', 'D']
+      .map((s) => ({ s, t: 0 }));
 
     seq.rootMidi = p.rootMidi;
     seq.scale = p.scale;
@@ -748,7 +859,13 @@
     });
 
     const presetSel = $('preset');
-    const genreLabels = { psy: 'PSYTRANCE', edm: 'ELECTRONIC / EDM', desi: 'DESI / PUNJABI' };
+    const genreLabels = {
+      psy: 'PSYTRANCE',
+      edm: 'ELECTRONIC / EDM',
+      bass: 'BASS & BREAKS',
+      global: 'GLOBAL GROOVES',
+      desi: 'DESI / PUNJABI',
+    };
     const groups = {};
     for (const p of PSY.PRESETS) {
       if (!groups[p.genre]) {
@@ -763,12 +880,8 @@
     }
     presetSel.addEventListener('change', (e) => applyPreset(e.target.value));
 
-    // macros
-    $('m-cutoff').addEventListener('input', (e) => engine.setParam('bassCutoff', +e.target.value));
-    $('m-decay').addEventListener('input', (e) => engine.setParam('bassDecay', +e.target.value / 1000));
-    $('m-res').addEventListener('input', (e) => engine.setParam('leadRes', +e.target.value));
-    $('m-delay').addEventListener('input', (e) => engine.setParam('delayMix', +e.target.value / 100));
-    $('m-drive').addEventListener('input', (e) => engine.setParam('drive', +e.target.value / 100));
+    // macros (with automation capture when AUTO is armed)
+    for (const id of Object.keys(MACRO_MAP)) bindMacro(id);
 
     // build
     $('build').addEventListener('click', () => {
@@ -901,6 +1014,13 @@
           viz.onEvent(e);
           chipFlash('fx');
           break;
+        case 'auto': {
+          // keep the macro sliders visually following recorded automation
+          for (const [id, m] of Object.entries(MACRO_MAP)) {
+            if (m.param === e.param) $(id).value = e.value / m.scale;
+          }
+          break;
+        }
         case 'buildstart': {
           viz.onEvent(e);
           const b = $('build');
@@ -927,6 +1047,7 @@
   buildArrange();
   buildPads();
   buildFred();
+  wireGenerators();
   wireControls();
   applyPreset('fullon');
   requestAnimationFrame(loop);

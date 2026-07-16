@@ -31,7 +31,7 @@
     seq2.scale = seq.scale;
     seq2.swing = seq.swing;
     seq2.mode = useSong ? 'song' : 'loop';
-    seq2.chain = [...seq.chain];
+    seq2.chain = seq.chain.map((c) => (typeof c === 'string' ? { s: c, t: 0 } : { ...c }));
     seq2.currentSlot = seq.currentSlot;
     for (const s of PSY.Sequencer.SLOTS) {
       seq2.patterns[s] = PSY.Sequencer.copyPattern(seq.patterns[s]);
@@ -39,9 +39,11 @@
 
     for (let bar = 0; bar < bars; bar++) {
       const pat = seq2.patternForBar(bar);
+      const trans = seq2.transposeForBar(bar);
       for (let i = 0; i < 16; i++) {
         const t = lead + bar * barDur + i * stepDur + (i % 2 ? seq2.swing * stepDur : 0);
-        seq2._trigger(pat, i, t);
+        seq2._applyAuto(pat, i, t);
+        seq2._trigger(pat, i, t, trans);
       }
     }
     seq2.events.length = 0;
