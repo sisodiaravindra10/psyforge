@@ -49,6 +49,11 @@
       return SLOTS;
     }
 
+    // fx one-shots, indexed by the fx step's `note` field (0 = the legacy zap)
+    static get FX_KINDS() {
+      return ['zap', 'snare', 'riser', 'crash'];
+    }
+
     static emptyPattern() {
       const p = {};
       for (const t of TRACKS) {
@@ -114,9 +119,13 @@
 
     start() {
       if (this.playing) return;
+      const fresh = !this.engine.ctx;
       this.engine.init();
       const ctx = this.engine.ctx;
       if (ctx.state === 'suspended') ctx.resume();
+      // on a brand-new context init() already used the hard-set branch at
+      // 145 BPM; clear it so the real tempo lands instantly instead of gliding
+      if (fresh) this.engine._tempoInit = false;
       this.engine.setTempo(this.bpm);
       this.playing = true;
       this.step = 0;
@@ -152,6 +161,16 @@
 
     _tick() {
       const ctx = this.engine.ctx;
+      // Resync if the main thread stalled past our lookahead. Without this we
+      // schedule every missed step at a time already in the past and Web Audio
+      // fires them all at once (a machine-gun burst), and the live-quantize
+      // math in the UI (which derives the current step from nextTime) breaks.
+      if (this.nextTime < ctx.currentTime) {
+        const missed = Math.floor((ctx.currentTime - this.nextTime) / this.stepDur) + 1;
+        this.step = (this.step + missed) % 16;
+        this.absStep += missed;
+        this.nextTime += missed * this.stepDur;
+      }
       while (this.nextTime < ctx.currentTime + this.scheduleAhead) {
         this._scheduleStep(this.step, this.nextTime);
         this.nextTime += this.stepDur;
@@ -218,7 +237,9 @@
       for (const param in pat.auto) {
         const v = pat.auto[param][i];
         if (v != null) {
-          this.engine.setParam(param, v);
+          // pass `t` so the value lands on the audio clock at the step, not up
+          // to a lookahead early — and so offline renders schedule it at all
+          this.engine.setParam(param, v, t);
           this.events.push({ type: 'auto', time: t, param, value: v });
         }
       }
@@ -290,21 +311,39 @@
       if (pat.voice[i].on && each(pat.voice[i], (tt, vv) => eng.voice(tt, pat.voice[i].note, vv))) {
         this.events.push({ type: 'voice', time: t, vel: pat.voice[i].vel, note: pat.voice[i].note });
       }
-      if (pat.fx[i].on && each(pat.fx[i], (tt, vv) => eng.zap(tt, vv, i))) {
-        this.events.push({ type: 'fx', time: t, vel: pat.fx[i].vel });
+      if (pat.fx[i].on) {
+        // The fx step's `note` selects which one-shot fires. 0 = zap keeps every
+        // shipped preset byte-identical; the build voices live here too so they
+        // render offline (export.js only walks _trigger, never _scheduleStep).
+        const kind = Sequencer.FX_KINDS[pat.fx[i].note] || 'zap';
+        const dur = this.barDur * this.buildBars;
+        const fire =
+          kind === 'snare' ? (tt, vv) => eng.snare(tt, vv)
+          : kind === 'riser' ? (tt) => eng.riser(tt, dur)
+          : kind === 'crash' ? (tt, vv) => eng.crash(tt, vv)
+          : (tt, vv) => eng.zap(tt, vv, i);
+        if (each(pat.fx[i], fire)) {
+          this.events.push({ type: 'fx', time: t, vel: pat.fx[i].vel, kind });
+        }
       }
     }
 
     // pop all events whose scheduled time has arrived (called from rAF)
     popDue() {
       if (!this.engine.ctx) return [];
+      // Collapse a hidden-tab backlog BEFORE draining, keeping the newest tail.
+      // (The old guard ran after the drain, where only the not-yet-due handful
+      // remained, so it never fired and a 30-minute backlog replayed in one
+      // frame.) Splicing from the head preserves order, so the retained tail
+      // still lands the correct playhead and chain highlight.
+      if (this.events.length > 400) {
+        this.events.splice(0, this.events.length - 32);
+      }
       const now = this.engine.ctx.currentTime;
       const due = [];
       while (this.events.length && this.events[0].time <= now) {
         due.push(this.events.shift());
       }
-      // drop stale backlog if the tab was hidden for a while
-      if (this.events.length > 400) this.events.length = 0;
       return due;
     }
   }

@@ -23,6 +23,10 @@
         duckDepth: 0.45,  // sidechain floor — lower = deeper EDM pump
         duckRelease: 0.13,
         clapTone: 1150,   // clap bandpass center — ~2000 = dhol "ta" slap
+        hatToneClosed: 5200, // highpass corner; presets can go bright or dark
+        hatToneOpen: 4800,
+        hatDecayClosed: 0.065,
+        hatDecayOpen: 0.23,
         voicePitch: 0,    // semitone shift for the sampled voice-note slices
         master: 0.85,
       };
@@ -99,13 +103,23 @@
         this.tracks[name] = g;
       }
 
-      // bass drive waveshaper feeding the bass track gain
+      // Bass drive: a FIXED tanh(7u) curve with a pre-gain in front of it.
+      // The curve is built once — a WaveShaper's `curve` is a plain property,
+      // not an AudioParam, so reassigning it per step (as this used to) cannot
+      // be scheduled and collapsed to a single constant in offline renders.
+      // driveGain scales the input instead, which IS automatable, and
+      // tanh(7 * (k/7) * x) reproduces the old tanh(k*x) exactly.
+      this.driveGain = ctx.createGain();
       this.bassDrive = ctx.createWaveShaper();
       this.bassDrive.oversample = '2x';
+      this.bassDrive.curve = Engine.softClipCurve(Engine.DRIVE_K, 8192);
+      this.driveGain.connect(this.bassDrive);
       this.bassDrive.connect(this.tracks.bass);
       this._updateDrive();
 
-      // ping-pong delay bus (3/16 L, 1/8 R, cross feedback) for lead & fx
+      // ping-pong delay bus (3/16 L, 1/8 R, cross feedback) for lead & fx.
+      // Both sides are fed from the input (with a sub-Haas offset on R) so the
+      // wet path is genuinely stereo — feeding only L made R a feedback echo.
       this.delayIn = ctx.createGain();
       this.delayL = ctx.createDelay(2);
       this.delayR = ctx.createDelay(2);
@@ -119,9 +133,14 @@
       const delayHP = ctx.createBiquadFilter();
       delayHP.type = 'highpass';
       delayHP.frequency.value = 250;
+      // 3 ms pre-delay on the right tap: stereo spread without mono comb-filtering
+      this.spreadR = ctx.createDelay(0.05);
+      this.spreadR.delayTime.value = 0.003;
 
       this.delayIn.connect(delayHP);
       delayHP.connect(this.delayL);
+      delayHP.connect(this.spreadR);
+      this.spreadR.connect(this.delayR);
       this.delayL.connect(fbL);
       fbL.connect(this.delayR);
       this.delayR.connect(fbR);
@@ -134,6 +153,18 @@
       panR.connect(dOut);
       dOut.connect(this.duck);
 
+      // per-track post-fader send gains — mute/level must cut the wet path too,
+      // otherwise a muted track keeps echoing. Voices connect to sends[name],
+      // never straight to delayIn. (riser/crash stay direct: buildGain has no
+      // fader, and routing them here would push the snare roll into the delay.)
+      this.sends = {};
+      for (const name of ['lead', 'vox', 'voice', 'fx']) {
+        const s = ctx.createGain();
+        s.gain.value = this.mutes[name] ? 0 : this.levels[name];
+        s.connect(this.delayIn);
+        this.sends[name] = s;
+      }
+
       // shared noise buffer for hats
       const len = ctx.sampleRate * 2;
       this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -143,8 +174,12 @@
       this.setTempo(145);
     }
 
-    static softClipCurve(k) {
-      const n = 1024;
+    // max drive shape: drive=1 -> k=7, so the pre-gain is (1 + drive*6) / 7
+    static get DRIVE_K() {
+      return 7;
+    }
+
+    static softClipCurve(k, n = 1024) {
       const curve = new Float32Array(n);
       for (let i = 0; i < n; i++) {
         const x = (i / (n - 1)) * 2 - 1;
@@ -153,32 +188,41 @@
       return curve;
     }
 
-    _updateDrive() {
-      if (!this.bassDrive) return;
-      const k = 1 + this.params.drive * 6;
-      this.bassDrive.curve = Engine.softClipCurve(k);
+    _updateDrive(t) {
+      if (!this.driveGain) return;
+      const g = (1 + this.params.drive * 6) / Engine.DRIVE_K;
+      if (t == null) this.driveGain.gain.value = g;
+      else this.driveGain.gain.setValueAtTime(g, t);
     }
 
-    setParam(name, value) {
+    // `t` (optional) schedules the change on the audio clock instead of
+    // applying it immediately — automation replay passes the step's time so
+    // the value lands in the right place both live and in offline renders.
+    setParam(name, value, t) {
       this.params[name] = value;
-      if (name === 'drive') this._updateDrive();
+      if (name === 'drive') this._updateDrive(t);
       if (name === 'master' && this.master) {
-        this.master.gain.setTargetAtTime(value, this.ctx.currentTime, 0.03);
+        if (t == null) this.master.gain.setTargetAtTime(value, this.ctx.currentTime, 0.03);
+        else this.master.gain.setValueAtTime(value, t);
       }
     }
 
     setTrackLevel(name, v) {
       this.levels[name] = v;
-      if (this.tracks[name] && !this.mutes[name]) {
-        this.tracks[name].gain.setTargetAtTime(v, this.ctx.currentTime, 0.03);
-      }
+      if (!this.ctx || this.mutes[name]) return;
+      const now = this.ctx.currentTime;
+      if (this.tracks[name]) this.tracks[name].gain.setTargetAtTime(v, now, 0.03);
+      if (this.sends[name]) this.sends[name].gain.setTargetAtTime(v, now, 0.03);
     }
 
     setMute(name, muted) {
       this.mutes[name] = muted;
-      if (this.tracks[name]) {
-        this.tracks[name].gain.setTargetAtTime(muted ? 0 : this.levels[name], this.ctx.currentTime, 0.02);
-      }
+      if (!this.ctx) return;
+      const target = muted ? 0 : this.levels[name];
+      const now = this.ctx.currentTime;
+      if (this.tracks[name]) this.tracks[name].gain.setTargetAtTime(target, now, 0.02);
+      // cut the wet path too, or a muted track keeps echoing through the delay
+      if (this.sends[name]) this.sends[name].gain.setTargetAtTime(target, now, 0.02);
     }
 
     setTempo(bpm) {
@@ -209,10 +253,15 @@
       const tune = Math.max(35, p.kickTune);
       const start = Math.max(tune + 40, p.kickAttack);
       const dec = Math.max(0.15, p.kickDecay);
+      const swp = start > 800 ? 0.045 : 0.03;
       o.frequency.setValueAtTime(start, t);
-      o.frequency.exponentialRampToValueAtTime(tune, t + (start > 800 ? 0.045 : 0.03));
+      o.frequency.exponentialRampToValueAtTime(tune, t + swp);
       o.frequency.exponentialRampToValueAtTime(Math.max(tune * 0.82, 30), t + dec * 0.85);
+      // Hold most of the level until the pitch sweep lands, then decay. Decaying
+      // straight from the transient left the body ~15 dB down by the time the
+      // fundamental arrived, so the low end never actually got heard.
       g.gain.setValueAtTime(1.05 * vel, t);
+      g.gain.exponentialRampToValueAtTime((start > 800 ? 0.62 : 0.78) * vel, t + swp);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dec);
       o.connect(g);
       g.connect(this.tracks.kick);
@@ -327,7 +376,7 @@
       const send = ctx.createGain();
       send.gain.value = Math.min(0.5, p.delayMix * 0.8);
       amp.connect(send);
-      send.connect(this.delayIn);
+      send.connect(this.sends.vox);
 
       const end = t + dur + 0.15;
       for (const o of oscs) {
@@ -341,17 +390,19 @@
     // bass dispatcher — psy roll by default, or one of the genre voices
     bass(t, freq, vel = 1, stepDur = 0.1) {
       const style = this.params.bassStyle;
-      if (style === 'reese') return this._bassReese(t, freq, vel);
+      if (style === 'reese') return this._bassReese(t, freq, vel, stepDur);
       if (style === 'log') return this._bassLog(t, freq, vel);
       if (style === 'reverse') return this._bassReverse(t, freq, vel, stepDur);
       this._bassRoll(t, freq, vel);
     }
 
     // dnb Reese: two saws slowly beating against each other + sub sine
-    _bassReese(t, freq, vel = 1) {
+    _bassReese(t, freq, vel = 1, stepDur = 0.1) {
       const ctx = this.ctx;
       const p = this.params;
-      const gate = Math.max(0.15, p.bassDecay * 2.4);
+      // Cap the gate to 3 steps: a 0.3 decay held 0.72 s against an 86 ms 16th
+      // at 174 BPM, so notes stacked 3-4 deep into a clipped drone.
+      const gate = Math.min(Math.max(0.15, p.bassDecay * 2.4), stepDur * 3);
 
       const mix = ctx.createGain();
       for (const det of [-14, 14]) {
@@ -365,7 +416,8 @@
       }
       const sub = ctx.createOscillator();
       sub.type = 'sine';
-      sub.frequency.value = freq / 2;
+      // floor at 32 Hz — freq/2 on E1 landed at 20.6 Hz: inaudible cone travel
+      sub.frequency.value = Math.max(freq / 2, 32);
       const subG = ctx.createGain();
       subG.gain.value = 0.6;
       sub.connect(subG);
@@ -387,7 +439,7 @@
 
       mix.connect(f);
       f.connect(g);
-      g.connect(this.bassDrive);
+      g.connect(this.driveGain);
     }
 
     // amapiano log drum: pitched punchy triangle+sine knock
@@ -422,7 +474,7 @@
       o2.connect(g2);
       g2.connect(f);
       f.connect(g);
-      g.connect(this.bassDrive);
+      g.connect(this.driveGain);
       o.start(t);
       o2.start(t);
       o.stop(t + decay + 0.05);
@@ -460,7 +512,7 @@
 
       mix.connect(f);
       f.connect(g);
-      g.connect(this.bassDrive);
+      g.connect(this.driveGain);
     }
 
     // rolling psy bass: saw/square through 24dB/oct lowpass, fast filter+amp decay
@@ -502,7 +554,7 @@
       bodyG.connect(f1);
       f1.connect(f2);
       f2.connect(g);
-      g.connect(this.bassDrive);
+      g.connect(this.driveGain);
 
       o.start(t);
       body.start(t);
@@ -511,27 +563,41 @@
       body.stop(end);
     }
 
-    // hats: filtered noise bursts; open hat = the classic psy offbeat
+    // Hats: filtered noise bursts; open hat = the classic psy offbeat.
+    // The highpass used to sit at 7900/6800 Hz, which left the whole 3-6 kHz
+    // presence octave empty — the mix read as muffled no matter how loud the
+    // hats got. Now the corner is lower, a peaking band fills that octave, and
+    // velocity opens the filter so accents actually read as brighter.
     hat(t, vel = 1, open = false) {
       const ctx = this.ctx;
+      const p = this.params;
       const src = ctx.createBufferSource();
       src.buffer = this.noiseBuf;
       src.loop = true;
       src.playbackRate.value = 1 + Math.random() * 0.04;
 
+      const base = open ? p.hatToneOpen : p.hatToneClosed;
       const hp = ctx.createBiquadFilter();
       hp.type = 'highpass';
-      hp.frequency.value = open ? 6800 : 7900;
+      hp.frequency.value = base * (0.85 + 0.3 * Math.min(vel, 1.3));
       hp.Q.value = 0.7;
+
+      // fills the presence octave the highpass leaves behind
+      const pres = ctx.createBiquadFilter();
+      pres.type = 'peaking';
+      pres.frequency.value = open ? 4200 : 3900;
+      pres.Q.value = 0.8;
+      pres.gain.value = 4;
 
       const g = ctx.createGain();
       const peakLevel = (open ? 0.5 : 0.4) * vel;
-      const decay = open ? 0.18 : 0.045;
+      const decay = open ? p.hatDecayOpen : p.hatDecayClosed;
       g.gain.setValueAtTime(peakLevel, t);
       g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
 
       src.connect(hp);
-      hp.connect(g);
+      hp.connect(pres);
+      pres.connect(g);
       g.connect(this.tracks[open ? 'ohat' : 'chat']);
       src.start(t);
       src.stop(t + decay + 0.03);
@@ -552,7 +618,7 @@
       const send = ctx.createGain();
       send.gain.value = p.delayMix;
       out.connect(send);
-      send.connect(this.delayIn);
+      send.connect(this.sends.lead);
 
       if (style === 'fm') {
         // FM squelch: sine carrier, modulator ~2.6x, swept index
@@ -769,7 +835,7 @@
       const send = ctx.createGain();
       send.gain.value = p.delayMix * 0.8;
       out.connect(send);
-      send.connect(this.delayIn);
+      send.connect(this.sends.lead);
 
       const fil = ctx.createBiquadFilter();
       fil.type = 'lowpass';
@@ -915,7 +981,7 @@
       src.connect(g);
       g.connect(this.tracks.voice);
       g.connect(send);
-      send.connect(this.delayIn);
+      send.connect(this.sends.voice);
       src.start(t, offset, content + 0.03);
     }
 
@@ -952,7 +1018,7 @@
       hp.connect(g);
       g.connect(this.tracks.fx);
       g.connect(send);
-      send.connect(this.delayIn);
+      send.connect(this.sends.fx);
       o.start(t);
       mod.start(t);
       o.stop(t + 0.16);

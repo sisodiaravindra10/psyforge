@@ -71,10 +71,20 @@
       <input type="range" id="master" min="0" max="100" step="1" value="85">
     </div>
 
-    <button id="build" class="build-btn" title="Queue a 2-bar snare-roll build at the next bar (while playing)">BUILD</button>
+    <button id="build" class="build-btn" title="Queue a 2-bar snare-roll build at the next bar (while playing)" disabled>BUILD</button>
+
+    <div class="ctl export-ctl">
+      <label for="export-reps">&times; REPEAT</label>
+      <input type="number" id="export-reps" min="1" max="64" value="1"
+             title="Render the loop or chain this many times — a 12-bar chain at 4 makes a full track">
+    </div>
     <button id="export" class="export-btn" title="Render to WAV — the song chain in SONG mode, 8 bars of the loop otherwise">&#11015; WAV</button>
+    <button id="share" class="share-btn" title="Copy a link that carries this whole beat">&#128279; SHARE</button>
+    <button id="restore" class="mini-btn restore-btn" hidden title="Reload the beat you were working on last time">&#8635; RESTORE LAST SESSION</button>
   </div>
 </header>
+
+<div id="banner" class="banner" role="status" aria-live="polite"></div>
 
 <section id="viz-wrap" class="viz-wrap">
   <canvas id="viz-gl"></canvas>
@@ -119,6 +129,8 @@
     <button id="gen-euclid" class="mini-btn" title="Spread HITS evenly across 16 steps (euclidean rhythm) on the selected track">EUCLID</button>
     <button id="gen-dice" class="mini-btn" title="Write a random scale-locked melody into the LEAD track">&#127922; MELODY</button>
     <span class="gen-sep"></span>
+    <button id="undo" class="mini-btn" title="Undo (⌘Z)" disabled>&#8630; UNDO</button>
+    <button id="redo" class="mini-btn" title="Redo (⌘⇧Z)" disabled>&#8631; REDO</button>
     <button id="auto-rec" class="rec-btn auto-btn" title="Arm, then move SOUND DESIGN sliders while playing — the movement records into this pattern and replays every loop">&#9679; AUTO</button>
     <button id="auto-clr" class="mini-btn" title="Clear recorded automation from this pattern">CLR AUTO</button>
   </div>
@@ -162,24 +174,61 @@
       <h2 class="panel-title">SOUND DESIGN</h2>
       <div class="macro-grid">
         <div class="macro">
+          <label for="bass-style">BASS VOICE</label>
+          <select id="bass-style" title="Swap the bass synthesis without reloading a preset">
+            <option value="roll">Roll (psy)</option>
+            <option value="reese">Reese (dnb)</option>
+            <option value="log">Log drum (amapiano)</option>
+            <option value="reverse">Reverse (hardstyle)</option>
+          </select>
+        </div>
+        <div class="macro">
+          <label for="lead-style">LEAD VOICE</label>
+          <select id="lead-style" title="Swap the lead synthesis without reloading a preset">
+            <option value="acid">Acid 303</option>
+            <option value="saws">Detuned saws</option>
+            <option value="fm">FM squelch</option>
+            <option value="pluck">Pluck</option>
+            <option value="chord">Chord stab</option>
+            <option value="tumbi">Tumbi</option>
+            <option value="cowbell">Cowbell</option>
+            <option value="screech">Screech</option>
+          </select>
+        </div>
+        <div class="macro">
           <label for="m-cutoff">BASS CUTOFF</label>
-          <input type="range" id="m-cutoff" min="300" max="1400" step="10" value="750">
+          <input type="range" id="m-cutoff" min="300" max="1400" step="10" value="750"
+                 title="How bright the bass opens on each note">
         </div>
         <div class="macro">
           <label for="m-decay">BASS DECAY</label>
-          <input type="range" id="m-decay" min="30" max="200" step="1" value="55">
+          <input type="range" id="m-decay" min="30" max="320" step="1" value="55"
+                 title="Note length — short is the psy roll, long is a dnb/amapiano bass">
         </div>
         <div class="macro">
           <label for="m-res">LEAD RESONANCE</label>
-          <input type="range" id="m-res" min="1" max="18" step="0.5" value="8">
+          <input type="range" id="m-res" min="1" max="18" step="0.5" value="8"
+                 title="Filter emphasis — high values give the 303 acid squelch">
         </div>
         <div class="macro">
           <label for="m-delay">DELAY MIX</label>
-          <input type="range" id="m-delay" min="0" max="60" step="1" value="22">
+          <input type="range" id="m-delay" min="0" max="85" step="1" value="22"
+                 title="How much of the lead/vox/fx goes to the ping-pong echo">
         </div>
         <div class="macro">
           <label for="m-drive">DRIVE</label>
-          <input type="range" id="m-drive" min="0" max="100" step="1" value="45">
+          <input type="range" id="m-drive" min="0" max="100" step="1" value="45"
+                 title="Bass saturation — adds harmonics and glue">
+        </div>
+        <div class="macro">
+          <label for="m-pump">PUMP</label>
+          <input type="range" id="m-pump" min="0" max="95" step="1" value="55"
+                 title="Sidechain depth — how hard the kick ducks everything else">
+        </div>
+        <div class="macro">
+          <label for="m-kickchar">KICK CHARACTER</label>
+          <input type="range" id="m-kickchar" min="200" max="2200" step="20" value="1700"
+                 title="Pitch-sweep start: low is a boomy EDM kick, high is the clicky psy kick">
         </div>
       </div>
     </div>
@@ -198,9 +247,11 @@
         <span><b>V</b> visual style</span>
         <span><b>1-4</b> pattern A&ndash;D</span>
         <span><b>drag</b> A&ndash;D tabs into SONG = build the set</span>
-        <span><b>scroll</b> a SONG block = shift its key (chord movement)</span>
+        <span><b>click</b> a SONG block = remove it &middot; <b>scroll</b> = shift its key</span>
         <span><b>right-click</b> a step = ratchet &times;2&ndash;&times;4</span>
         <span><b>cmd+scroll</b> a step = probability</span>
+        <span><b>scroll</b> an FX step = zap / snare / riser / crash</span>
+        <span><b>&#8984;Z</b> undo</span>
         <span><b>drop</b> an audio file on FRED MODE = load a voice</span>
       </p>
     </div>

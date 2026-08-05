@@ -5,14 +5,15 @@
 (function () {
   const PSY = (window.PSY = window.PSY || {});
 
-  PSY.exportWav = async function (seq, engine) {
+  PSY.exportWav = async function (seq, engine, opts = {}) {
     const bpm = seq.bpm;
     const stepDur = 60 / bpm / 4;
     const barDur = stepDur * 16;
     const useSong = seq.mode === 'song' && seq.chain.length > 0;
-    const bars = useSong ? seq.chain.length : 8;
+    const reps = Math.max(1, Math.min(64, Math.round(opts.repeat || 1)));
+    const bars = (useSong ? seq.chain.length : 8) * reps;
     const lead = 0.1; // pre-roll silence
-    const tail = 2; // let delay/reverb tails ring out
+    const tail = 3.5; // let delay feedback + a crash ring out
     const sr = 44100;
 
     const off = new OfflineAudioContext(2, Math.ceil((lead + bars * barDur + tail) * sr), sr);
@@ -23,6 +24,9 @@
     eng2.mutes = { ...engine.mutes };
     eng2.voiceBuffer = engine.voiceBuffer; // voice-note slices render offline too
     eng2.init(off);
+    // init() consumes the first-call branch that hard-sets delay times, so clear
+    // the flag: otherwise every render glides the delay in from 145 BPM
+    eng2._tempoInit = false;
     eng2.setTempo(bpm);
 
     const seq2 = new PSY.Sequencer(eng2);

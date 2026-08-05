@@ -81,10 +81,11 @@
       palette: { h1: 300, h2: 185, sym: 8 },
       desc: 'The classic festival engine, in the style of <b>Astrix</b> ("Type 1", "Closer to Heaven"). Kick on the floor, rolling K-B-B-B triplet bass on E1, offbeat open hats and a descending Phrygian lead run. This is the heartbeat of full-on psytrance at 145 BPM.',
       engine: {
+        hatDecayOpen: 0.28,
         bassCutoff: 780, bassDecay: 0.055, bassWave: 'sawtooth',
         leadStyle: 'saws', leadRes: 6, delayMix: 0.22, drive: 0.45, kickTune: 50,
       },
-      levels: { kick: 0.95, clap: 0.5, bass: 0.9, chat: 0.4, ohat: 0.45, lead: 0.6, vox: 0.6, fx: 0.5 },
+      levels: { kick: 0.8, clap: 0.5, bass: 0.75, chat: 0.58, ohat: 0.63, lead: 0.6, vox: 0.6, fx: 0.5 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk([]),
@@ -110,7 +111,7 @@
         bassCutoff: 640, bassDecay: 0.12, bassWave: 'sawtooth',
         leadStyle: 'fm', leadRes: 8, delayMix: 0.3, drive: 0.35, kickTune: 48,
       },
-      levels: { kick: 0.95, clap: 0.5, bass: 0.9, chat: 0.32, ohat: 0.42, lead: 0.55, vox: 0.65, fx: 0.55 },
+      levels: { kick: 0.8, clap: 0.5, bass: 0.75, chat: 0.464, ohat: 0.588, lead: 0.55, vox: 0.65, fx: 0.55 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk([]),
@@ -136,7 +137,7 @@
         bassCutoff: 560, bassDecay: 0.16, bassWave: 'sawtooth',
         leadStyle: 'saws', leadRes: 3, delayMix: 0.35, drive: 0.3, kickTune: 49,
       },
-      levels: { kick: 0.95, clap: 0.5, bass: 0.95, chat: 0.3, ohat: 0.4, lead: 0.55, vox: 0.5, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.5, bass: 0.75, chat: 0.435, ohat: 0.56, lead: 0.55, vox: 0.5, fx: 0.4 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk([]),
@@ -162,7 +163,7 @@
         bassCutoff: 800, bassDecay: 0.05, bassWave: 'sawtooth',
         leadStyle: 'fm', leadRes: 10, delayMix: 0.3, drive: 0.55, kickTune: 51,
       },
-      levels: { kick: 0.95, clap: 0.5, bass: 0.9, chat: 0.38, ohat: 0.42, lead: 0.62, vox: 0.6, fx: 0.5 },
+      levels: { kick: 0.8, clap: 0.5, bass: 0.75, chat: 0.551, ohat: 0.588, lead: 0.62, vox: 0.6, fx: 0.5 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk([]),
@@ -188,7 +189,7 @@
         bassCutoff: 700, bassDecay: 0.06, bassWave: 'sawtooth',
         leadStyle: 'acid', leadRes: 14, delayMix: 0.3, drive: 0.4, kickTune: 49,
       },
-      levels: { kick: 0.95, clap: 0.5, bass: 0.85, chat: 0.36, ohat: 0.42, lead: 0.6, vox: 0.6, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.5, bass: 0.75, chat: 0.522, ohat: 0.588, lead: 0.6, vox: 0.6, fx: 0.4 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk([]),
@@ -219,7 +220,7 @@
         bassCutoff: 520, bassDecay: 0.045, bassWave: 'square',
         leadStyle: 'acid', leadRes: 12, delayMix: 0.4, drive: 0.5, kickTune: 47,
       },
-      levels: { kick: 0.95, clap: 0.5, bass: 0.85, chat: 0.25, ohat: 0.3, lead: 0.5, vox: 0.55, fx: 0.6 },
+      levels: { kick: 0.8, clap: 0.5, bass: 0.75, chat: 0.362, ohat: 0.42, lead: 0.5, vox: 0.55, fx: 0.6 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk([]),
@@ -249,7 +250,7 @@
         bassCutoff: 620, bassDecay: 0.2, bassWave: 'sawtooth',
         leadStyle: 'pluck', leadRes: 3, delayMix: 0.34, drive: 0.3,
       },
-      levels: { kick: 0.95, clap: 0.6, bass: 0.85, chat: 0.3, ohat: 0.4, lead: 0.62, vox: 0.62, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.6, bass: 0.75, chat: 0.435, ohat: 0.56, lead: 0.62, vox: 0.62, fx: 0.4 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk(CLAP24, CLAP24),
@@ -277,7 +278,7 @@
         bassCutoff: 500, bassDecay: 0.08, bassWave: 'sawtooth',
         leadStyle: 'saws', leadRes: 4, delayMix: 0.26, drive: 0.55,
       },
-      levels: { kick: 1.0, clap: 0.55, bass: 0.8, chat: 0.3, ohat: 0.38, lead: 0.65, vox: 0.58, fx: 0.45 },
+      levels: { kick: 0.8, clap: 0.55, bass: 0.75, chat: 0.435, ohat: 0.532, lead: 0.65, vox: 0.58, fx: 0.45 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk(CLAP24, CLAP24),
@@ -305,7 +306,7 @@
         bassCutoff: 650, bassDecay: 0.2, bassWave: 'sawtooth',
         leadStyle: 'chord', leadRes: 2, delayMix: 0.3, drive: 0.3,
       },
-      levels: { kick: 0.95, clap: 0.6, bass: 0.85, chat: 0.28, ohat: 0.4, lead: 0.55, vox: 0.7, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.6, bass: 0.75, chat: 0.406, ohat: 0.56, lead: 0.55, vox: 0.7, fx: 0.4 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk(CLAP24, CLAP24),
@@ -333,13 +334,14 @@
       palette: { h1: 35, h2: 130, sym: 8 },
       desc: 'Pure bhangra engine in the style of <b>Panjabi MC</b> ("Mundian To Bach Ke") and <b>Diljit Dosanjh</b>: the dhol <b>chaal</b> gallop (dha&hellip;dha-dha&hellip;) on a thuddy kick, high "ta" slaps, a twangy <b>tumbi</b> riff bouncing on the high strings, and "hoi! hoi!" chants on the offbeats. 102 BPM with a light swing lilt.',
       engine: {
+        hatToneClosed: 6400, hatToneOpen: 5800, hatDecayClosed: 0.045, hatDecayOpen: 0.16,
         kickAttack: 240, kickDecay: 0.3, kickTune: 56,
         duckDepth: 0.6, duckRelease: 0.1,
         bassCutoff: 620, bassDecay: 0.16, bassWave: 'sawtooth',
         leadStyle: 'tumbi', leadRes: 4, delayMix: 0.16, drive: 0.35,
         clapTone: 2000,
       },
-      levels: { kick: 1.0, clap: 0.6, bass: 0.85, chat: 0.3, ohat: 0.3, lead: 0.68, vox: 0.7, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.6, bass: 0.75, chat: 0.435, ohat: 0.42, lead: 0.68, vox: 0.7, fx: 0.4 },
       tracks: {
         kick: tk([0, 3, 6, 8, 11, 14], [0, 8]), // the chaal gallop
         clap: tk([4, 7, 12, 15], [4, 12]),      // "ta" slaps on 2 & 4 + ghost kas
@@ -369,7 +371,7 @@
         leadStyle: 'tumbi', leadRes: 5, delayMix: 0.28, drive: 0.45, kickTune: 50,
         clapTone: 1900,
       },
-      levels: { kick: 0.95, clap: 0.5, bass: 0.9, chat: 0.38, ohat: 0.42, lead: 0.65, vox: 0.62, fx: 0.45 },
+      levels: { kick: 0.8, clap: 0.5, bass: 0.75, chat: 0.551, ohat: 0.588, lead: 0.65, vox: 0.62, fx: 0.45 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk(CLAP24, CLAP24),
@@ -403,7 +405,7 @@
         bassCutoff: 680, bassDecay: 0.18, bassWave: 'sawtooth',
         leadStyle: 'saws', leadRes: 4, delayMix: 0.35, drive: 0.35,
       },
-      levels: { kick: 0.95, clap: 0.5, bass: 0.9, chat: 0.3, ohat: 0.4, lead: 0.6, vox: 0.55, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.5, bass: 0.75, chat: 0.435, ohat: 0.56, lead: 0.6, vox: 0.55, fx: 0.4 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk(CLAP24, CLAP24),
@@ -431,7 +433,7 @@
         bassStyle: 'reverse', bassCutoff: 900, bassDecay: 0.3, bassWave: 'sawtooth',
         leadStyle: 'screech', leadRes: 8, delayMix: 0.22, drive: 0.7,
       },
-      levels: { kick: 1.0, clap: 0.45, bass: 0.9, chat: 0.3, ohat: 0.35, lead: 0.55, vox: 0.5, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.45, bass: 0.75, chat: 0.435, ohat: 0.49, lead: 0.55, vox: 0.5, fx: 0.4 },
       tracks: {
         kick: tk(KICK4, KICK4),
         clap: tk(CLAP24),
@@ -458,13 +460,16 @@
       palette: { h1: 150, h2: 210, sym: 8 },
       desc: 'Drum & bass in the style of <b>Pendulum</b> and <b>Noisia</b>: the two-step break (kick displaced, snares cracking 2 & 4) over a detuned <b>Reese bass</b> — two saws beating against each other through the filter. 174 BPM, half-time heads, full-time feet.',
       engine: {
+        hatToneClosed: 5600, hatDecayClosed: 0.05,
         kickAttack: 900, kickDecay: 0.2, kickTune: 52,
         duckDepth: 0.55, duckRelease: 0.08,
         bassStyle: 'reese', bassCutoff: 480, bassDecay: 0.3, bassWave: 'sawtooth',
         leadStyle: 'fm', leadRes: 6, delayMix: 0.25, drive: 0.5,
         clapTone: 1500,
       },
-      levels: { kick: 0.95, clap: 0.65, bass: 0.95, chat: 0.32, ohat: 0.35, lead: 0.5, vox: 0.5, fx: 0.4 },
+      // the Reese is two saws plus a sub sustained across a 3-step gate — much
+      // denser than a plucked psy roll, so it needs its own trim to leave crest
+      levels: { kick: 0.8, clap: 0.65, bass: 0.5, chat: 0.464, ohat: 0.49, lead: 0.5, vox: 0.5, fx: 0.4 },
       tracks: {
         kick: tk([0, 10], [0, 10]),
         clap: tk(CLAP24, CLAP24),
@@ -494,7 +499,7 @@
         leadStyle: 'pluck', leadRes: 3, delayMix: 0.3, drive: 0.35,
         clapTone: 1600,
       },
-      levels: { kick: 0.95, clap: 0.6, bass: 0.9, chat: 0.38, ohat: 0.4, lead: 0.5, vox: 0.68, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.6, bass: 0.75, chat: 0.551, ohat: 0.56, lead: 0.5, vox: 0.68, fx: 0.4 },
       tracks: {
         kick: tk([0, 7, 10], [0]),
         clap: tk(CLAP24, [12]),
@@ -518,13 +523,14 @@
       desc: 'Drift phonk: the half-time backbeat (one lonely snare on beat 3), an 808-style boomy bass, low chant vocals — and the signature <b>cowbell melody</b> riding on top like it\'s 1994 in Memphis. Night drives only.',
       swing: 0.05,
       engine: {
+        hatToneClosed: 4600, hatDecayClosed: 0.09,
         kickAttack: 500, kickDecay: 0.35, kickTune: 47,
         duckDepth: 0.55, duckRelease: 0.15,
         bassStyle: 'log', bassCutoff: 800, bassDecay: 0.3, bassWave: 'sawtooth',
         leadStyle: 'cowbell', leadRes: 4, delayMix: 0.18, drive: 0.6,
         clapTone: 1300,
       },
-      levels: { kick: 1.0, clap: 0.6, bass: 0.9, chat: 0.3, ohat: 0.25, lead: 0.6, vox: 0.55, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.6, bass: 0.75, chat: 0.435, ohat: 0.35, lead: 0.6, vox: 0.55, fx: 0.4 },
       tracks: {
         kick: tk([0, 10], [0]),
         clap: tk([8], [8]),
@@ -552,12 +558,13 @@
       desc: 'Amapiano in the style of <b>Kabza De Small</b> and <b>DBN Gogo</b>: the sparse kick leaves all the room to the <b>log drum</b> — that bouncing pitched bass that IS the genre — with soft chord stabs, shakers, and airy vocal sighs. Yanos, 115 BPM.',
       swing: 0.08,
       engine: {
+        hatToneClosed: 6800, hatToneOpen: 6200, hatDecayClosed: 0.04, hatDecayOpen: 0.16,
         kickAttack: 300, kickDecay: 0.4, kickTune: 45,
         duckDepth: 0.5, duckRelease: 0.18,
         bassStyle: 'log', bassCutoff: 950, bassDecay: 0.13, bassWave: 'sawtooth',
         leadStyle: 'chord', leadRes: 2, delayMix: 0.22, drive: 0.5,
       },
-      levels: { kick: 0.9, clap: 0.5, bass: 0.95, chat: 0.35, ohat: 0.35, lead: 0.45, vox: 0.6, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.5, bass: 0.75, chat: 0.507, ohat: 0.49, lead: 0.45, vox: 0.6, fx: 0.4 },
       tracks: {
         kick: tk([0, 8], [0]),
         clap: tk([4, 12]),
@@ -581,13 +588,14 @@
       desc: 'Navratri energy: the garba gallop on a rounded dhol kick, high dandiya stick clicks, and a tumbi line snaking through <b>raga Bhairav</b> (the double-harmonic scale — both the b2 and the major 7, maximum exotic tension). Spin accordingly. 108 BPM, swung.',
       swing: 0.18,
       engine: {
-        kickAttack: 260, kickDecay: 0.28, kickTune: 57,
+        hatToneClosed: 6600, hatToneOpen: 6000, hatDecayClosed: 0.04, hatDecayOpen: 0.14,
+        kickAttack: 260, kickDecay: 0.28, kickTune: 50,
         duckDepth: 0.6, duckRelease: 0.1,
         bassCutoff: 620, bassDecay: 0.16, bassWave: 'sawtooth',
         leadStyle: 'tumbi', leadRes: 4, delayMix: 0.2, drive: 0.4,
         clapTone: 2600,
       },
-      levels: { kick: 0.95, clap: 0.55, bass: 0.85, chat: 0.3, ohat: 0.3, lead: 0.65, vox: 0.6, fx: 0.4 },
+      levels: { kick: 0.8, clap: 0.55, bass: 0.75, chat: 0.435, ohat: 0.42, lead: 0.65, vox: 0.6, fx: 0.4 },
       tracks: {
         kick: tk([0, 3, 6, 8, 11, 14], [0, 8]),
         clap: tk([2, 6, 10, 14], [6, 14]),

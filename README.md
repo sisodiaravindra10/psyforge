@@ -122,6 +122,22 @@ the WAV export too.
   as beat-reactive LED-wall pixel letters over the shader: columns ripple with
   the bass, the word breathes on the kick, hues run along the letters
 
+## Your work is safe
+
+- **Autosave** — the session is written to `localStorage` on hide/unload and
+  every 20s. A reload boots the curated hero preset, then offers a
+  **↺ RESTORE LAST SESSION** chip rather than silently resurrecting it.
+- **Undo / redo** — ⌘Z / ⌘⇧Z, or the UNDO/REDO buttons. Snapshots are taken at
+  the *intent* level, so one undo restores a whole drag-paint gesture, a
+  EUCLID/MELODY generation, a DUP, or a preset load.
+- **↺ next to CLR** restores chain bars you just removed, per-bar key badge
+  intact.
+- **🔗 SHARE** copies a link carrying the entire beat — all four patterns
+  (with ratchets, probability, vowels, slices), the song chain with its per-bar
+  transposes, every synth param, mixer levels/mutes, and the visualizer style +
+  word. About 1.2 KB of URL; no server involved. A shared link overrides local
+  autosave, and opening one never touches the sender's copy.
+
 ## Musical tools
 
 - **Per-bar chord movement** — scroll on any SONG chain block to shift that
@@ -141,10 +157,19 @@ the WAV export too.
   the movement records into the current pattern (per 16th) and replays every
   loop — filter sweeps that stay. CLR AUTO wipes it. Automation renders into
   the WAV export.
-- **Synth styles** — bass: psy roll / **Reese** (dnb) / **log drum**
+- **Synth styles, now switchable in the UI** — the BASS VOICE and LEAD VOICE
+  selects in SOUND DESIGN swap the synthesis on your existing pattern (no
+  preset reload, nothing overwritten), and snap the paired envelope macro so
+  the groove still breathes. Bass: psy roll / **Reese** (dnb) / **log drum**
   (amapiano) / **reverse** (hardstyle); leads: acid / saws / FM / pluck /
-  chord / tumbi / **cowbell** (phonk) / **screech** (hardstyle). Scales now
-  include Major, Mixolydian and **Bhairav** (double harmonic).
+  chord / tumbi / **cowbell** (phonk) / **screech** (hardstyle). Scales include
+  Major, Mixolydian and **Bhairav** (double harmonic).
+- **PUMP** (sidechain depth) and **KICK CHARACTER** (pitch-sweep start: boomy
+  EDM ↔ clicky psy) are now macros, so they record with AUTO like the rest.
+- **FX one-shots per step** — scroll an FX step to pick zap / snare / riser /
+  crash. This is also how a build figure gets into a WAV.
+- **× REPEAT** next to the export renders the loop or chain N times, so a
+  12-bar chain can become a full-length track.
 
 ## Arrangement & song mode
 

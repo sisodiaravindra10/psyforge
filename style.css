@@ -266,6 +266,69 @@ input[type="range"]::-moz-range-thumb {
 .export-btn:hover { background: rgba(34, 230, 255, 0.16); transform: translateY(-1px); }
 .export-btn:disabled { opacity: 0.5; cursor: wait; }
 
+.share-btn {
+  padding: 11px 16px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--acid);
+  background: rgba(182, 255, 0, 0.07);
+  border: 1px solid var(--acid);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.08s ease;
+}
+
+.share-btn:hover { background: rgba(182, 255, 0, 0.18); transform: translateY(-1px); }
+
+.restore-btn {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  animation: build-pulse 2.2s ease-in-out infinite;
+}
+
+.export-ctl { min-width: 78px; }
+
+.export-ctl input[type="number"] {
+  width: 100%;
+  padding: 7px 8px;
+  background: var(--cell);
+  border: 1px solid var(--cell-edge);
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  outline: none;
+}
+
+/* status banner (session restore, share confirmation, FRED hints) */
+.banner {
+  margin: 0 28px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #061100;
+  background: linear-gradient(90deg, var(--acid), #7fd400);
+  border-radius: 8px;
+  transition: max-height 0.25s ease, opacity 0.25s ease, padding 0.25s ease;
+  padding: 0 14px;
+}
+
+.banner.show { max-height: 60px; opacity: 1; padding: 10px 14px; }
+
+/* visible keyboard focus — box-shadow, not outline: .cell.playhead and
+   .chain-block.playing already own `outline` and would blink the ring away */
+:focus-visible {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--cyan) !important;
+  border-radius: 6px;
+}
+
+button:disabled { opacity: 0.4; cursor: default; }
+
 /* ============ arrange bar (pattern slots + song chain) ============ */
 
 .arrange {
@@ -783,6 +846,9 @@ body.thump .viz-wrap {
 .pad:hover { border-color: var(--vox); }
 .pad:active { transform: translateY(1px); }
 
+/* pads are pointerdown-driven; stop the browser's tap delay and long-press menu */
+.pad { touch-action: manipulation; -webkit-touch-callout: none; }
+
 .pad.hit {
   background: var(--vox);
   color: #241a00;
@@ -952,7 +1018,18 @@ body.thump .viz-wrap {
   .lower { grid-template-columns: 1fr; }
   .top { padding: 16px 14px 10px; }
   .console { padding: 0 14px; }
+  .banner { margin: 0 14px; }
   .viz-wrap { margin: 4px 14px 14px; height: 220px; }
-  .track-row { grid-template-columns: 132px repeat(16, 28px); }
+  .track-row { grid-template-columns: 108px repeat(16, 28px); }
+  /* the grid must pan horizontally, so pin the labels: without min-width the
+     sticky containing block is the stretched row and the rule does nothing */
+  .track-row { min-width: max-content; }
+  .track-head {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #12092a; /* opaque — cells bleed through a gradient */
+  }
   .track-vol { display: none; }
+  .track-name { width: 40px; font-size: 10px; }
 }

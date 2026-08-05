@@ -21,7 +21,7 @@
     lead: { label: 'LEAD', color: 'var(--lead)', pitched: true },
     vox:  { label: 'VOX',  color: 'var(--vox)',  pitched: true, vox: true },
     voice: { label: 'VOICE', color: 'var(--voice)', pitched: false, slice: true },
-    fx:   { label: 'FX',   color: 'var(--fx)',  pitched: false },
+    fx:   { label: 'FX',   color: 'var(--fx)',  pitched: false, fxkind: true },
   };
 
   const $ = (id) => document.getElementById(id);
@@ -68,16 +68,21 @@
       vol.min = 0;
       vol.max = 100;
       vol.value = Math.round(engine.levels[track] * 100);
+      vol.setAttribute('aria-label', meta.label + ' level');
+      vol.title = meta.label + ' level';
       vol.addEventListener('input', () => engine.setTrackLevel(track, vol.value / 100));
 
       const mute = document.createElement('button');
       mute.className = 'mute-btn';
       mute.textContent = 'M';
-      mute.title = 'Mute';
+      mute.title = 'Mute ' + meta.label;
+      mute.setAttribute('aria-label', 'Mute ' + meta.label);
+      mute.setAttribute('aria-pressed', 'false');
       mute.addEventListener('click', () => {
         const m = !engine.mutes[track];
         engine.setMute(track, m);
         mute.classList.toggle('muted', m);
+        mute.setAttribute('aria-pressed', String(m));
       });
 
       head.append(chip, name, vol, mute);
@@ -93,6 +98,7 @@
 
         cell.addEventListener('mousedown', (e) => {
           e.preventDefault();
+          pushUndo(true);
           const st = seq.pattern[track][i];
           if (e.altKey && meta.vox && st.on) {
             // cycle the vowel: ah -> oh -> oo -> eh -> ee
@@ -117,11 +123,13 @@
           e.preventDefault();
           const st = seq.pattern[track][i];
           if (!st.on) return;
+          pushUndo(true);
           st.ratchet = ((st.ratchet || 1) % 4) + 1;
           renderCell(track, i);
         });
         cell.addEventListener('wheel', (e) => {
           e.preventDefault();
+          pushUndo(true);
           const st = seq.pattern[track][i];
           if (e.metaKey || e.ctrlKey) {
             // cmd/ctrl+scroll cycles step probability: 100/75/50/25%
@@ -132,9 +140,9 @@
             renderCell(track, i);
             return;
           }
-          if (!meta.pitched && !meta.slice) return;
+          if (!meta.pitched && !meta.slice && !meta.fxkind) return;
           const d = e.deltaY < 0 ? 1 : -1;
-          const max = meta.slice ? 7 : PSY.MAX_DEGREE;
+          const max = meta.fxkind ? PSY.Sequencer.FX_KINDS.length - 1 : meta.slice ? 7 : PSY.MAX_DEGREE;
           st.note = Math.max(0, Math.min(max, st.note + d));
           renderCell(track, i);
         }, { passive: false });
@@ -165,6 +173,9 @@
       el.firstChild.textContent = label;
     } else if (meta.slice) {
       el.firstChild.textContent = 'S' + (st.note + 1);
+    } else if (meta.fxkind) {
+      const k = PSY.Sequencer.FX_KINDS[st.note] || 'zap';
+      el.firstChild.textContent = k === 'zap' ? '' : k.slice(0, 3).toUpperCase();
     }
   }
 
@@ -181,6 +192,7 @@
   /* chain drag & drop: drag A–D tabs in to insert, drag blocks to reorder */
 
   let dropIndex = -1;
+  let chainStash = null; // last removed chain bars, for the restore button
 
   function clearDropMarks() {
     dropIndex = -1;
@@ -190,12 +202,14 @@
   }
 
   function chainInsert(slot, idx) {
+    pushUndo();
     idx = Math.max(0, Math.min(seq.chain.length, idx));
     seq.chain.splice(idx, 0, { s: slot, t: 0 });
     renderChain();
   }
 
   function chainMove(from, to) {
+    pushUndo();
     if (from < 0 || from >= seq.chain.length) return;
     const s = seq.chain.splice(from, 1)[0];
     if (to > from) to--;
@@ -259,6 +273,7 @@
     wireChainDnd();
 
     $('dup').addEventListener('click', () => {
+      pushUndo();
       const slots = PSY.Sequencer.SLOTS;
       const next = slots[(slots.indexOf(seq.currentSlot) + 1) % slots.length];
       seq.patterns[next] = PSY.Sequencer.copyPattern(seq.pattern);
@@ -290,16 +305,34 @@
     clr.textContent = 'CLR';
     clr.title = 'Clear the chain';
     clr.addEventListener('click', () => {
+      chainStash = { entries: seq.chain.slice(), at: 0 };
+      pushUndo();
       seq.chain.length = 0;
       renderChain();
     });
     add.appendChild(clr);
+
+    // restore the last removed bar(s) — a 26px block is an easy misclick
+    const undoChain = document.createElement('button');
+    undoChain.className = 'mini-btn';
+    undoChain.id = 'chain-restore';
+    undoChain.innerHTML = '&#8635;';
+    undoChain.title = 'Restore the bars you just removed';
+    undoChain.disabled = true;
+    undoChain.addEventListener('click', () => {
+      if (!chainStash) return;
+      seq.chain.splice(chainStash.at, 0, ...chainStash.entries);
+      chainStash = null;
+      renderChain();
+    });
+    add.appendChild(undoChain);
   }
 
   function selectSlot(s) {
     seq.currentSlot = s;
     for (const k of PSY.Sequencer.SLOTS) {
       slotBtns[k].classList.toggle('active', k === s);
+      slotBtns[k].setAttribute('aria-pressed', String(k === s));
     }
     renderAll();
   }
@@ -307,6 +340,8 @@
   function renderChain() {
     const el = $('chain');
     el.innerHTML = '';
+    const restore = $('chain-restore');
+    if (restore) restore.disabled = !chainStash;
     // normalize legacy string entries to {s, t} objects in place
     seq.chain.forEach((c, i) => {
       if (typeof c === 'string') seq.chain[i] = { s: c, t: 0 };
@@ -340,6 +375,8 @@
         clearDropMarks();
       });
       b.addEventListener('click', () => {
+        chainStash = { entries: [seq.chain[idx]], at: idx };
+        pushUndo();
         seq.chain.splice(idx, 1);
         renderChain();
       });
@@ -369,6 +406,7 @@
     }
 
     $('gen-euclid').addEventListener('click', () => {
+      pushUndo();
       const track = trackSel.value;
       const hits = Math.max(1, Math.min(16, +$('gen-hits').value || 5));
       const rot = Math.max(0, Math.min(15, +$('gen-rot').value || 0));
@@ -378,6 +416,7 @@
     });
 
     $('gen-dice').addEventListener('click', () => {
+      pushUndo();
       // scale-locked random melody: euclidean rhythm + mostly stepwise walk
       const hits = 6 + Math.floor(Math.random() * 5);
       const rhythm = PSY.euclid(hits, 16, Math.floor(Math.random() * 16));
@@ -400,24 +439,32 @@
     });
 
     $('auto-clr').addEventListener('click', () => {
+      pushUndo();
       seq.pattern.auto = {};
       document.querySelectorAll('.macro.automated').forEach((m) => m.classList.remove('automated'));
     });
   }
 
   // macro slider binding with optional automation capture
+  // Numeric macros only — each is automatable, so `bindMacro` writes to
+  // pattern.auto and the sequencer replays it live and offline. Style selects
+  // deliberately stay out: a string in an automation lane would render as NaN.
   const MACRO_MAP = {
     'm-cutoff': { param: 'bassCutoff', scale: 1 },
     'm-decay': { param: 'bassDecay', scale: 1 / 1000 },
     'm-res': { param: 'leadRes', scale: 1 },
     'm-delay': { param: 'delayMix', scale: 1 / 100 },
     'm-drive': { param: 'drive', scale: 1 / 100 },
+    // right = deeper pump, so the slider reads the way producers think
+    'm-pump': { param: 'duckDepth', scale: 1 / 100, invert: true },
+    'm-kickchar': { param: 'kickAttack', scale: 1 },
   };
 
   function bindMacro(id) {
-    const { param, scale } = MACRO_MAP[id];
+    const { param, scale, invert } = MACRO_MAP[id];
     $(id).addEventListener('input', (e) => {
-      const value = +e.target.value * scale;
+      const raw = +e.target.value * scale;
+      const value = invert ? 1 - raw : raw;
       engine.setParam(param, value);
       if (autoRec && seq.playing && engine.ctx) {
         const k = seq.step + Math.round((engine.ctx.currentTime - seq.nextTime) / seq.stepDur);
@@ -449,7 +496,7 @@
       key.className = 'pad-key';
       key.textContent = PAD_KEYS[i].toUpperCase();
       pad.append(note, vow, key);
-      pad.addEventListener('mousedown', (e) => {
+      pad.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         if (e.altKey) {
           const v = PSY.VOWELS;
@@ -519,7 +566,7 @@
       const pad = document.createElement('button');
       pad.className = 'pad voice-pad';
       pad.innerHTML = `<span class="pad-note">S${i + 1}</span><span class="pad-vowel">slice</span>`;
-      pad.addEventListener('mousedown', (e) => {
+      pad.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         voiceTrigger(i);
       });
@@ -767,28 +814,242 @@
 
     viz.setPalette(p.palette);
     viz.bpm = p.bpm;
-
-    // sync controls
-    $('bpm').value = p.bpm;
-    $('bpm-val').textContent = p.bpm;
-    $('root').value = p.rootMidi;
-    $('scale').value = p.scale;
-    $('m-cutoff').value = p.engine.bassCutoff;
-    $('m-decay').value = Math.round(p.engine.bassDecay * 1000);
-    $('m-res').value = p.engine.leadRes;
-    $('m-delay').value = Math.round(p.engine.delayMix * 100);
-    $('m-drive').value = Math.round(p.engine.drive * 100);
     $('viz-preset').textContent = p.name + ' — ' + p.artist;
     $('about-text').innerHTML = p.desc;
+
+    syncControls();
+    selectSlot('A');
+    renderChain();
+    renderPads();
+  }
+
+  // Push engine/sequencer state OUT to every control. Reads from the live
+  // engine rather than a preset object, so it also serves session restore and
+  // shared links (where there is no preset to read from).
+  function syncControls() {
+    const P = engine.params;
+    $('bpm').value = seq.bpm;
+    $('bpm-val').textContent = seq.bpm;
+    $('root').value = seq.rootMidi;
+    $('scale').value = seq.scale;
+    $('swing').value = Math.round(seq.swing * 100);
+    $('swing-val').textContent = Math.round(seq.swing * 100) + '%';
+    $('master').value = Math.round(P.master * 100);
+    $('master-val').textContent = Math.round(P.master * 100);
+    $('m-cutoff').value = P.bassCutoff;
+    $('m-decay').value = Math.round(P.bassDecay * 1000);
+    $('m-res').value = P.leadRes;
+    $('m-delay').value = Math.round(P.delayMix * 100);
+    $('m-drive').value = Math.round(P.drive * 100);
+    $('bass-style').value = P.bassStyle;
+    $('lead-style').value = P.leadStyle;
+    $('m-pump').value = Math.round((1 - P.duckDepth) * 100);
+    $('m-kickchar').value = P.kickAttack;
+    $('vpitch').value = P.voicePitch;
+    $('vpitch-val').textContent = P.voicePitch;
+    $('mode').textContent = seq.mode.toUpperCase();
+    $('mode').classList.toggle('song', seq.mode === 'song');
+    $('mode').setAttribute('aria-pressed', String(seq.mode === 'song'));
 
     document.querySelectorAll('.track-vol').forEach((vol, idx) => {
       const t = PSY.Sequencer.TRACKS[idx];
       vol.value = Math.round(engine.levels[t] * 100);
     });
+    document.querySelectorAll('.mute-btn').forEach((btn, idx) => {
+      const t = PSY.Sequencer.TRACKS[idx];
+      btn.classList.toggle('muted', !!engine.mutes[t]);
+      btn.setAttribute('aria-pressed', String(!!engine.mutes[t]));
+    });
+  }
 
-    selectSlot('A');
+  /* ---------- undo (intent-level snapshots) ---------- */
+
+  const undoStack = [];
+  const redoStack = [];
+  let undoCoalesceAt = 0;
+
+  function snapshot() {
+    return {
+      patterns: JSON.parse(JSON.stringify(seq.patterns)),
+      chain: JSON.parse(JSON.stringify(seq.chain)),
+      currentSlot: seq.currentSlot,
+      mode: seq.mode,
+      rootMidi: seq.rootMidi,
+      scale: seq.scale,
+      bpm: seq.bpm,
+      swing: seq.swing,
+    };
+  }
+
+  function restoreSnapshot(s) {
+    seq.patterns = JSON.parse(JSON.stringify(s.patterns));
+    seq.chain = JSON.parse(JSON.stringify(s.chain));
+    seq.currentSlot = s.currentSlot;
+    seq.mode = s.mode;
+    seq.rootMidi = s.rootMidi;
+    seq.scale = s.scale;
+    seq.setBpm(s.bpm);
+    seq.swing = s.swing;
+    syncControls();
+    selectSlot(s.currentSlot);
+    renderChain();
+  }
+
+  // Call BEFORE mutating. `coalesce` merges rapid same-gesture edits (drag
+  // painting) into one undo entry.
+  function pushUndo(coalesce) {
+    const now = performance.now();
+    if (coalesce && now - undoCoalesceAt < 400 && undoStack.length) {
+      undoCoalesceAt = now;
+      return;
+    }
+    undoCoalesceAt = now;
+    undoStack.push(snapshot());
+    if (undoStack.length > 60) undoStack.shift();
+    redoStack.length = 0;
+    updateUndoUi();
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    redoStack.push(snapshot());
+    restoreSnapshot(undoStack.pop());
+    updateUndoUi();
+  }
+
+  function redo() {
+    if (!redoStack.length) return;
+    undoStack.push(snapshot());
+    restoreSnapshot(redoStack.pop());
+    updateUndoUi();
+  }
+
+  function updateUndoUi() {
+    $('undo').disabled = !undoStack.length;
+    $('redo').disabled = !redoStack.length;
+  }
+
+  /* ---------- session persistence + share links ---------- */
+
+  const SAVE_KEY = 'psyforge.v1';
+
+  function serialize() {
+    return {
+      v: 1,
+      presetId: $('preset').value,
+      bpm: seq.bpm,
+      rootMidi: seq.rootMidi,
+      scale: seq.scale,
+      swing: seq.swing,
+      mode: seq.mode,
+      currentSlot: seq.currentSlot,
+      chain: seq.chain,
+      patterns: seq.patterns,
+      params: engine.params,
+      levels: engine.levels,
+      mutes: engine.mutes,
+      viz: { styleIndex: viz.styleIndex, word: viz.word },
+      // the FRED take is an AudioBuffer — too big for storage and not ours to
+      // keep without asking, so we only remember that the beat expects one
+      needsVoice: PSY.Sequencer.SLOTS.some((s) => seq.patterns[s].voice.some((st) => st.on)),
+    };
+  }
+
+  function deserialize(d) {
+    if (!d || d.v !== 1) return false;
+    const p = PSY.getPreset(d.presetId);
+    $('preset').value = d.presetId;
+    $('viz-preset').textContent = p.name + ' — ' + p.artist;
+    $('about-text').innerHTML = p.desc;
+    viz.setPalette(p.palette);
+
+    for (const s of PSY.Sequencer.SLOTS) {
+      if (d.patterns[s]) seq.patterns[s] = PSY.Sequencer.copyPattern(d.patterns[s]);
+    }
+    seq.chain = (d.chain || []).map((c) => (typeof c === 'string' ? { s: c, t: 0 } : { ...c }));
+    seq.mode = d.mode === 'song' ? 'song' : 'loop';
+    seq.rootMidi = d.rootMidi;
+    seq.scale = d.scale;
+    seq.swing = d.swing || 0;
+    seq.setBpm(d.bpm);
+    viz.bpm = d.bpm;
+
+    Object.assign(engine.params, PSY.Engine.DEFAULTS, d.params || {});
+    engine._updateDrive();
+    for (const [t, v] of Object.entries(d.levels || {})) engine.setTrackLevel(t, v);
+    for (const [t, m] of Object.entries(d.mutes || {})) engine.setMute(t, m);
+    if (d.viz) {
+      viz.styleIndex = d.viz.styleIndex || 0;
+      $('viz-style').innerHTML = '&#10022; ' + PSY.Visualizer.STYLES[viz.styleIndex];
+      if (d.viz.word) {
+        $('word').value = d.viz.word;
+        viz.setWord(d.viz.word);
+      }
+    }
+
+    syncControls();
+    selectSlot(d.currentSlot || 'A');
     renderChain();
     renderPads();
+    if (d.needsVoice && !engine.voiceBuffer) flashBanner('This beat uses a voice note — record your own in FRED MODE');
+    return true;
+  }
+
+  function autosave() {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(serialize()));
+    } catch (err) {
+      /* private mode / quota — losing autosave is not worth breaking playback */
+    }
+  }
+
+  function flashBanner(msg, ms = 6000) {
+    const b = $('banner');
+    b.textContent = msg;
+    b.classList.add('show');
+    clearTimeout(flashBanner._t);
+    flashBanner._t = setTimeout(() => b.classList.remove('show'), ms);
+  }
+
+  // share link: JSON -> deflate-raw -> base64url in the hash
+  const b64u = {
+    enc: (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+    dec: (s) => {
+      const b = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+      return Uint8Array.from(b, (c) => c.charCodeAt(0));
+    },
+  };
+
+  async function makeShareLink() {
+    const json = new TextEncoder().encode(JSON.stringify(serialize()));
+    let bytes = json;
+    if (window.CompressionStream) {
+      const cs = new CompressionStream('deflate-raw');
+      const w = cs.writable.getWriter();
+      w.write(json);
+      w.close();
+      bytes = new Uint8Array(await new Response(cs.readable).arrayBuffer());
+    }
+    return location.origin + location.pathname + '#1.' + b64u.enc(bytes);
+  }
+
+  async function loadFromHash() {
+    const h = location.hash;
+    if (!h.startsWith('#1.')) return false;
+    try {
+      let bytes = b64u.dec(h.slice(3));
+      if (window.DecompressionStream) {
+        const ds = new DecompressionStream('deflate-raw');
+        const w = ds.writable.getWriter();
+        w.write(bytes);
+        w.close();
+        bytes = new Uint8Array(await new Response(ds.readable).arrayBuffer());
+      }
+      return deserialize(JSON.parse(new TextDecoder().decode(bytes)));
+    } catch (err) {
+      console.warn('shared link could not be read:', err);
+      return false;
+    }
   }
 
   /* ---------- transport & controls ---------- */
@@ -806,6 +1067,7 @@
       playBtn.classList.toggle('playing', seq.playing);
       playBtn.querySelector('.play-label').textContent = seq.playing ? 'STOP' : 'PLAY';
       playBtn.querySelector('.play-icon').innerHTML = seq.playing ? '&#9632;' : '&#9654;';
+      $('build').disabled = !seq.playing;
       if (!seq.playing) {
         clearPlayhead();
         setChainPlaying(-1);
@@ -813,8 +1075,24 @@
       }
     });
 
+    // Track focus modality so Space can activate a keyboard-focused button
+    // instead of always hitting the transport. Gating on tagName alone would
+    // kill every shortcut whenever a mouse click left focus on a button.
+    let kbdNav = false;
+    document.addEventListener('keydown', (e) => { if (e.key === 'Tab') kbdNav = true; }, true);
+    document.addEventListener('mousedown', () => { kbdNav = false; }, true);
+
     document.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        e.shiftKey ? redo() : undo();
+        return;
+      }
+      if (mod) return; // leave browser shortcuts alone
+      const ae = document.activeElement;
+      if (kbdNav && ae && ae.tagName === 'BUTTON' && ae !== playBtn) return;
       if (e.code === 'Space') {
         e.preventDefault();
         playBtn.click();
@@ -883,6 +1161,51 @@
     // macros (with automation capture when AUTO is armed)
     for (const id of Object.keys(MACRO_MAP)) bindMacro(id);
 
+    // Voice selects: swap the synth topology without reloading a preset (which
+    // would overwrite all four slots). Both params are read at trigger time and
+    // export.js deep-copies engine.params, so the WAV follows automatically.
+    // Changing a voice also snaps its paired envelope macro — a reese/log gate
+    // is floored well above a psy 16th, so keeping the psy decay would drone.
+    const STYLE_PAIRS = {
+      bassStyle: { roll: 55, reese: 300, log: 130, reverse: 300 },
+      leadStyle: { acid: 13, saws: 5, fm: 8, pluck: 3, chord: 2, tumbi: 4, cowbell: 4, screech: 8 },
+    };
+    $('bass-style').addEventListener('change', (e) => {
+      engine.setParam('bassStyle', e.target.value);
+      const dec = STYLE_PAIRS.bassStyle[e.target.value];
+      if (dec) {
+        engine.setParam('bassDecay', dec / 1000);
+        $('m-decay').value = dec;
+      }
+    });
+    $('lead-style').addEventListener('change', (e) => {
+      engine.setParam('leadStyle', e.target.value);
+      const res = STYLE_PAIRS.leadStyle[e.target.value];
+      if (res) {
+        engine.setParam('leadRes', res);
+        $('m-res').value = res;
+      }
+    });
+
+    // undo / redo
+    $('undo').addEventListener('click', undo);
+    $('redo').addEventListener('click', redo);
+
+    // share link
+    $('share').addEventListener('click', async () => {
+      const btn = $('share');
+      const url = await makeShareLink();
+      history.replaceState(null, '', url);
+      try {
+        await navigator.clipboard.writeText(url);
+        btn.textContent = 'LINK COPIED';
+      } catch (err) {
+        btn.textContent = 'LINK IN URL BAR';
+      }
+      flashBanner('Shareable link ready — it carries your patterns, chain and sound settings.');
+      setTimeout(() => (btn.innerHTML = '&#128279; SHARE'), 2600);
+    });
+
     // build
     $('build').addEventListener('click', () => {
       if (!seq.playing || seq.buildActive || seq.buildPending) return;
@@ -900,7 +1223,8 @@
       const old = btn.innerHTML;
       btn.textContent = 'RENDERING…';
       try {
-        const blob = await PSY.exportWav(seq, engine);
+        const reps = Math.max(1, Math.min(64, +$('export-reps').value || 1));
+        const blob = await PSY.exportWav(seq, engine, { repeat: reps });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         const mode = seq.mode === 'song' && seq.chain.length ? 'song' : 'loop';
@@ -909,6 +1233,14 @@
         setTimeout(() => URL.revokeObjectURL(a.href), 10000);
       } catch (err) {
         console.error('WAV export failed:', err);
+        btn.textContent = '\u26a0 EXPORT FAILED';
+        btn.title = String(err);
+        btn.disabled = false;
+        setTimeout(() => {
+          btn.innerHTML = old;
+          btn.title = 'Render to WAV';
+        }, 3000);
+        return;
       }
       btn.innerHTML = old;
       btn.disabled = false;
@@ -927,10 +1259,11 @@
       $('viz-style').innerHTML = '&#10022; ' + viz.cycleStyle();
     });
     $('viz-toggle').addEventListener('click', (e) => {
-      viz.enabled = !viz.enabled;
-      wrap.classList.toggle('hidden-viz', !viz.enabled);
-      e.target.textContent = viz.enabled ? 'VIZ ON' : 'VIZ OFF';
-      if (viz.enabled) viz._resize();
+      const on = !viz.enabled;
+      wrap.classList.toggle('hidden-viz', !on);
+      viz.setEnabled(on);
+      e.target.textContent = on ? 'VIZ ON' : 'VIZ OFF';
+      e.target.setAttribute('aria-pressed', String(on));
     });
     $('viz-full').addEventListener('click', () => {
       if (document.fullscreenElement) document.exitFullscreen();
@@ -1017,7 +1350,9 @@
         case 'auto': {
           // keep the macro sliders visually following recorded automation
           for (const [id, m] of Object.entries(MACRO_MAP)) {
-            if (m.param === e.param) $(id).value = e.value / m.scale;
+            if (m.param === e.param) {
+              $(id).value = (m.invert ? 1 - e.value : e.value) / m.scale;
+            }
           }
           break;
         }
@@ -1049,6 +1384,45 @@
   buildFred();
   wireGenerators();
   wireControls();
+
+  // Always boot the curated hero preset so a first visit (and a demo) is the
+  // intended sound, then offer a restore instead of silently resurrecting a
+  // half-finished session.
   applyPreset('fullon');
+  updateUndoUi();
+
+  // A shared link wins over the local session — it is an explicit intent.
+  loadFromHash().then((fromLink) => {
+    if (fromLink) {
+      flashBanner('Loaded a shared beat. Edit freely — nothing here overwrites the sender.');
+      return;
+    }
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    } catch (err) { /* ignore unreadable storage */ }
+    if (!saved) return;
+    const btn = $('restore');
+    btn.hidden = false;
+    btn.addEventListener('click', () => {
+      if (deserialize(saved)) {
+        btn.hidden = true;
+        flashBanner('Session restored.');
+      }
+    });
+  });
+
+  // Respect the OS reduced-motion setting: park the visualizer rather than
+  // strobing an unwilling viewer. It is one click to turn back on.
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    $('viz-toggle').click();
+  }
+
+  window.addEventListener('pagehide', autosave);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') autosave();
+  });
+  setInterval(autosave, 20000);
+
   requestAnimationFrame(loop);
 })();

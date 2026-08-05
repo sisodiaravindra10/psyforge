@@ -30,6 +30,7 @@ uniform float uHue;
 uniform float uHue2;
 uniform float uSym;
 uniform float uBuild;
+uniform float uBuildPhase;
 uniform float uDrop;
 uniform float uMode;
 uniform sampler2D uWave;
@@ -167,7 +168,11 @@ void main() {
   else col = modeMandala(uv);
 
   // common: build strobe (accelerating) and drop whiteout + shockwave
-  col *= 1.0 + uBuild * (0.35 + 0.45 * sin(uTime * (20.0 + uBuild * 70.0)));
+  // Build flash. The phase is accumulated on the CPU and passed in: writing
+  // sin(uTime * rate) made the instantaneous frequency scale with page uptime
+  // (measured ~1200 Hz after 6 minutes), which is both a seizure risk and
+  // visually wrong. Fixed 2.5 Hz; the escalation comes from the amplitude ramp.
+  col *= 1.0 + uBuild * (0.35 + 0.45 * sin(uBuildPhase));
   float r = length(uv);
   float shock = abs(r - (1.0 - uDrop) * 1.5);
   col += hsv(uHue2, 0.25, 0.02 / (shock + 0.012)) * uDrop;
@@ -200,6 +205,7 @@ void main() {
       this.bassEnv = 0;
       this.fxFlash = 0;
       this.shake = 0;
+      this.buildPhase = 0; // CPU-accumulated strobe phase (see FRAG)
       this.dropEnv = 0;
       this.travel = 0;
       this.buildUntil = 0;
@@ -208,6 +214,8 @@ void main() {
       this.particles = [];
       this.quality = 2; // 2 full, 1 reduced, 0 minimal
       this._slowFrames = 0;
+      this._fastFrames = 0;
+      this._downSteps = 0;
       this._lastT = performance.now();
 
       this.freqData = null;
@@ -273,7 +281,7 @@ void main() {
       this.u = {};
       for (const name of [
         'uRes', 'uTime', 'uTravel', 'uKick', 'uBass', 'uMid', 'uHigh',
-        'uHue', 'uHue2', 'uSym', 'uBuild', 'uDrop', 'uMode', 'uWave',
+        'uHue', 'uHue2', 'uSym', 'uBuild', 'uBuildPhase', 'uDrop', 'uMode', 'uWave',
       ]) {
         this.u[name] = gl.getUniformLocation(prog, name);
       }
@@ -293,7 +301,9 @@ void main() {
     }
 
     _resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.6);
+      // cap harder in fullscreen — the shader is fill-rate bound and a retina
+      // phone at 1.6x fullscreen is several times the windowed pixel count
+      const dpr = Math.min(window.devicePixelRatio || 1, document.fullscreenElement ? 1.2 : 1.6);
       const r = this.canvas.getBoundingClientRect();
       this.canvas.width = Math.max(2, Math.round(r.width * dpr));
       this.canvas.height = Math.max(2, Math.round(r.height * dpr));
@@ -392,6 +402,27 @@ void main() {
     cycleStyle() {
       this.styleIndex = (this.styleIndex + 1) % Visualizer.STYLES.length;
       return Visualizer.STYLES[this.styleIndex];
+    }
+
+    // Disabling clears both layers once and then early-returns from frame(), so
+    // VIZ OFF really costs nothing (it used to keep sampling the analyser and
+    // running both draw passes, and kept a full-size backing store behind the
+    // collapsed 46px box because _resize only ran on enable).
+    setEnabled(on) {
+      this.enabled = on;
+      if (!on) {
+        const c = this.cx2d;
+        c.globalCompositeOperation = 'source-over';
+        c.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        if (this.gl) {
+          this.gl.clearColor(0.01, 0.004, 0.03, 1);
+          this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+        }
+        this.rings.length = 0;
+        this.particles.length = 0;
+      }
+      // run after the CSS class flip so the collapsed/expanded size is current
+      requestAnimationFrame(() => this._resize());
     }
 
     setPalette(p) {
@@ -587,15 +618,30 @@ void main() {
       const now = performance.now();
       const dt = Math.min(0.05, (now - this._lastT) / 1000);
       this._lastT = now;
+      if (!this.enabled) return; // cleared once by setEnabled; cost nothing here
 
-      // adaptive quality
+      // Adaptive quality, both directions. Demotion used to be a one-way
+      // ratchet: a single rough patch pinned a device at half resolution for
+      // the rest of the session. _downSteps bounds the promotions so it can't
+      // oscillate between tiers forever.
       if (dt > 0.028) {
+        this._fastFrames = 0;
         if (++this._slowFrames > 30 && this.quality > 0) {
           this.quality--;
+          this._downSteps = (this._downSteps || 0) + 1;
           this._slowFrames = 0;
           this._resize();
         }
-      } else if (this._slowFrames > 0) this._slowFrames--;
+      } else {
+        if (this._slowFrames > 0) this._slowFrames--;
+        if (dt < 0.02 && this.quality < 2 && (this._downSteps || 0) < 4) {
+          if (++this._fastFrames > 180) {
+            this.quality++;
+            this._fastFrames = 0;
+            this._resize();
+          }
+        }
+      }
 
       const { bass, mid, high } = this._bands();
 
@@ -605,6 +651,7 @@ void main() {
       this.shake *= Math.exp(-dt * 6);
       this.dropEnv *= Math.exp(-dt * 2.2);
       const build = this._buildProgress();
+      if (build > 0) this.buildPhase += dt * TAU * 2.5; // deterministic 2.5 Hz
       this.travel += dt * (0.22 + bass * 0.5 + this.kickEnv * 0.35 + build * 1.4);
       this.rot += dt * (0.25 + 0.5 * (this.bpm / 145)) * (1 + this.kickEnv * 0.8);
       this.hueShift += dt * (8 + this.kickEnv * 40);
@@ -642,6 +689,7 @@ void main() {
       gl.uniform1f(this.u.uHue2, ((this.palette.h2 + this.hueShift * 0.3) % 360) / 360);
       gl.uniform1f(this.u.uSym, this.palette.sym);
       gl.uniform1f(this.u.uBuild, build);
+      gl.uniform1f(this.u.uBuildPhase, this.buildPhase);
       gl.uniform1f(this.u.uDrop, this.dropEnv);
       gl.uniform1f(this.u.uMode, this.styleIndex);
 
