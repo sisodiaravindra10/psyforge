@@ -147,6 +147,8 @@
           renderCell(track, i);
         }, { passive: false });
 
+        cell.dataset.track = track;
+        cell.dataset.step = String(i);
         row.appendChild(cell);
         cells[track].push(cell);
       }
@@ -568,8 +570,10 @@
       pad.innerHTML = `<span class="pad-note">S${i + 1}</span><span class="pad-vowel">slice</span>`;
       pad.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        voiceTrigger(i);
+        voiceTrigger(i);       // audition on press: hear what you're dragging
+        beginSliceDrag(i, e);  // ...and arm a drag onto the grid
       });
+      pad.title = 'Tap to hear slice ' + (i + 1) + ' — drag it onto the grid to place it';
       wrap.appendChild(pad);
       voicePads.push(pad);
     }
@@ -599,6 +603,18 @@
     });
 
     wireFredFileDrop();
+
+    // the waveform is sliced into 8 visible segments — press one to audition it
+    // and drag it straight to a step, same as the pads
+    const wave = $('voice-wave');
+    wave.addEventListener('pointerdown', (e) => {
+      if (!engine.voiceBuffer) return;
+      e.preventDefault();
+      const r = wave.getBoundingClientRect();
+      const slice = Math.max(0, Math.min(7, Math.floor(((e.clientX - r.left) / r.width) * 8)));
+      voiceTrigger(slice);
+      beginSliceDrag(slice, e);
+    });
   }
 
   // drag an audio file (voice memo, sample) from the desktop onto FRED MODE
@@ -759,6 +775,113 @@
       renderCell('voice', idx);
     }
   }
+
+  /* ---------- drag a slice straight onto the grid ----------
+     Pointer events rather than HTML5 drag-and-drop, so this works with a
+     finger as well as a mouse. Pressing a pad auditions the slice immediately
+     (you hear what you are dragging); moving past a few pixels turns the press
+     into a drag. Dropping anywhere in a column writes to that column's VOICE
+     step, so you don't have to hit the 9th row exactly. */
+
+  let sliceDrag = null;
+
+  function beginSliceDrag(slice, e) {
+    if (!engine.voiceBuffer) return;
+    sliceDrag = { slice, moved: false, ghost: null, target: null,
+      startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY };
+  }
+
+  function sliceDragMove(e) {
+    if (!sliceDrag) return;
+    const dx = e.clientX - sliceDrag.startX;
+    const dy = e.clientY - sliceDrag.startY;
+    if (!sliceDrag.moved && Math.hypot(dx, dy) < 6) return;
+
+    if (!sliceDrag.moved) {
+      sliceDrag.moved = true;
+      document.body.classList.add('slice-dragging');
+      const g = document.createElement('div');
+      g.className = 'slice-ghost';
+      g.textContent = 'S' + (sliceDrag.slice + 1);
+      document.body.appendChild(g);
+      sliceDrag.ghost = g;
+      // FRED sits well below the grid, so the drop target is usually off
+      // screen when the drag starts. Bring it into view rather than asking
+      // the user to arrange the page first.
+      const r = cells.voice[0].getBoundingClientRect();
+      if (r.top < 60 || r.bottom > window.innerHeight - 60) {
+        // instant, not smooth: an animating scroll slides the drop target out
+        // from under the pointer mid-drag
+        $('grid').scrollIntoView({ block: 'center', behavior: 'auto' });
+      }
+      startEdgeScroll();
+    }
+    sliceDrag.ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+
+    sliceDrag.x = e.clientX;
+    sliceDrag.y = e.clientY;
+
+    const cell = columnCellAt(e.clientX, e.clientY);
+    if (sliceDrag.target !== cell) {
+      if (sliceDrag.target) sliceDrag.target.classList.remove('slice-over');
+      if (cell) cell.classList.add('slice-over');
+      sliceDrag.target = cell;
+    }
+  }
+
+  // hold the pointer near the top or bottom edge to keep scrolling
+  function startEdgeScroll() {
+    const EDGE = 90;
+    const tick = () => {
+      if (!sliceDrag) return;
+      const y = sliceDrag.y;
+      const h = window.innerHeight;
+      if (y < EDGE) window.scrollBy(0, -Math.ceil((EDGE - y) / 6));
+      else if (y > h - EDGE) window.scrollBy(0, Math.ceil((y - (h - EDGE)) / 6));
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  // the VOICE cell in whatever grid column the pointer is over
+  function columnCellAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    const cell = el && el.closest ? el.closest('.cell') : null;
+    if (!cell) return null;
+    return cells.voice[+cell.dataset.step] || null;
+  }
+
+  function endSliceDrag(e) {
+    if (!sliceDrag) return;
+    const drag = sliceDrag;
+    sliceDrag = null;
+    if (drag.ghost) drag.ghost.remove();
+    document.body.classList.remove('slice-dragging');
+    if (drag.target) drag.target.classList.remove('slice-over');
+    if (!drag.moved) return; // a plain tap: the audition already happened
+
+    const cell = columnCellAt(e.clientX, e.clientY);
+    if (!cell) return;
+    const step = +cell.dataset.step;
+    pushUndo();
+    const st = seq.pattern.voice[step];
+    st.on = true;
+    st.vel = 0.95;
+    st.note = drag.slice;
+    renderCell('voice', step);
+    cell.classList.add('slice-landed');
+    setTimeout(() => cell.classList.remove('slice-landed'), 420);
+  }
+
+  window.addEventListener('pointermove', sliceDragMove);
+  window.addEventListener('pointerup', endSliceDrag);
+  window.addEventListener('pointercancel', () => {
+    if (!sliceDrag) return;
+    if (sliceDrag.ghost) sliceDrag.ghost.remove();
+    if (sliceDrag.target) sliceDrag.target.classList.remove('slice-over');
+    document.body.classList.remove('slice-dragging');
+    sliceDrag = null;
+  });
 
   /* ---------- presets ---------- */
 

@@ -75,6 +75,11 @@ actual human voice (a 10–20 word line — yours, a friend's, a voice memo
 played at the mic). The clip is sliced into 8 equal chunks on the green
 **S1–S8 pads**:
 
+- **Drag a slice straight onto the grid.** Press a pad (you hear it) and drag
+  — the grid scrolls itself into view, the VOICE row lights up as the landing
+  zone, and dropping anywhere in a column places that slice on the column's
+  VOICE step. You can drag from the **waveform** too: grab the part of the
+  phrase you want. Works with a finger as well as a mouse, and it's undoable.
 - Tap pads to chop the line live; arm **● GRID** while playing and hits are
   quantized into the **VOICE row** of the sequencer
 - **Scroll a VOICE cell** to pick which slice it plays

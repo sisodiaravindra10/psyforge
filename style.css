@@ -876,6 +876,58 @@ body.thump .viz-wrap {
   .rec-btn { width: 100%; height: 40px; }
 }
 
+/* ---- dragging a voice slice onto the grid ---- */
+
+.slice-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 90;
+  margin: -18px 0 0 -22px; /* centre on the pointer */
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--voice);
+  color: #002a1a;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  pointer-events: none;
+  box-shadow: 0 0 24px var(--voice), 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+/* while dragging, make the VOICE row read as the landing zone */
+body.slice-dragging { cursor: grabbing; }
+body.slice-dragging .cell { transition: none; }
+
+body.slice-dragging .track-row:nth-child(8) .cell {
+  border-color: color-mix(in srgb, var(--voice) 55%, transparent);
+  background: color-mix(in srgb, var(--voice) 10%, var(--cell));
+}
+
+body.slice-dragging .track-row:nth-child(8) .track-chip {
+  transform: scaleY(1.4);
+  box-shadow: 0 0 18px var(--voice);
+}
+
+.cell.slice-over {
+  outline: 2px solid var(--voice);
+  outline-offset: -2px;
+  box-shadow: 0 0 20px var(--voice);
+}
+
+.cell.slice-landed { animation: slice-pop 0.42s ease-out; }
+
+@keyframes slice-pop {
+  0% { transform: scale(1.25); box-shadow: 0 0 30px var(--voice); }
+  100% { transform: scale(1); }
+}
+
+.pad.voice-pad.loaded { cursor: grab; }
+.pad.voice-pad.loaded:active { cursor: grabbing; }
+#voice-wave { cursor: grab; touch-action: none; }
+.pad.voice-pad { touch-action: none; } /* let a finger drag instead of scroll */
+
 /* ============ FRED MODE ============ */
 
 .fredmode { margin-top: 16px; }
