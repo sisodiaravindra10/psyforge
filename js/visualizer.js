@@ -158,6 +158,218 @@ vec3 modeMandala(vec2 uv) {
   return col;
 }
 
+/* ================= 3D: raymarched modes ================= */
+
+mat2 rot2(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+float hash21(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+float sdBox(vec3 p, vec3 b) {
+  vec3 d = abs(p) - b;
+  return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
+}
+
+/* ---- style 4: MAZE RUN — fly a winding corridor through an endless maze ----
+   The maze is an infinite grid of blocks keyed off a hash of the cell, with a
+   snaking corridor carved through it that the camera follows. */
+
+const float CELL = 3.0;
+
+// Which x-cell the corridor occupies at a given z-cell. Quantized so the
+// corridor turns at right angles like a real maze. The source wave is
+// deliberately slow: its slope stays under 1 cell per step, which guarantees
+// consecutive cells are at most one apart and the maze is always walkable.
+float corridorX(float cz) {
+  return floor(sin(cz * 0.21) * 1.7 + sin(cz * 0.058) * 1.9 + 0.5);
+}
+
+// One carved cell, widened in x to span its neighbours. Two cells that step
+// diagonally would otherwise touch only at an edge, leaving no way through.
+float corridorCell(vec3 p, float cz) {
+  float xp = corridorX(cz - 1.0);
+  float x0 = corridorX(cz);
+  float xn = corridorX(cz + 1.0);
+  float lo = min(x0, min(xp, xn));
+  float hi = max(x0, max(xp, xn));
+  vec3 c = vec3((lo + hi) * 0.5 * CELL, 0.35, cz * CELL);
+  // Depth 0.8 rather than 0.5 so consecutive cells OVERLAP. Boxes that merely
+  // touch make min() of the union collapse to ~0 along the shared face, and
+  // the marcher reads a phantom wall at every cell boundary.
+  vec3 h = vec3((hi - lo + 1.0) * CELL * 0.5, 1.7, CELL * 0.8);
+  float d = sdBox(p - c, h);
+  // dead-end alcoves off the side: reads as a maze rather than a tube
+  float hs = hash21(vec2(cz, 7.0));
+  if (hs > 0.66) {
+    float dir = hs > 0.83 ? 1.0 : -1.0;
+    vec3 b = vec3((x0 + dir * 1.4) * CELL, 0.2, cz * CELL);
+    d = min(d, sdBox(p - b, vec3(CELL * 1.1, 1.3, CELL * 0.3)));
+  }
+  return d;
+}
+
+// The world is solid rock and the corridor is carved out of it. Negating an
+// exact union of open cells keeps the field valid; the earlier per-cell block
+// test was not a distance field at all and tore the geometry apart.
+float mapMaze3(vec3 p) {
+  float cz = floor(p.z / CELL + 0.5);
+  float open = corridorCell(p, cz);
+  open = min(open, corridorCell(p, cz - 1.0));
+  open = min(open, corridorCell(p, cz + 1.0));
+  return -open;
+}
+
+// Camera path: ride the quantized corridor, easing across in the back half of
+// each cell so the turn is visible but never leaves the carved volume.
+float camX(float z) {
+  float f = z / CELL + 0.5;
+  float cz = floor(f);
+  return mix(corridorX(cz), corridorX(cz + 1.0), smoothstep(0.55, 1.0, fract(f))) * CELL;
+}
+
+vec3 mazeNormal(vec3 p) {
+  vec2 e = vec2(0.0025, 0.0);
+  return normalize(vec3(
+    mapMaze3(p + e.xyy) - mapMaze3(p - e.xyy),
+    mapMaze3(p + e.yxy) - mapMaze3(p - e.yxy),
+    mapMaze3(p + e.yyx) - mapMaze3(p - e.yyx)));
+}
+
+vec3 modeMazeRun(vec2 uv) {
+  float t = uTravel * 2.6;
+  vec3 ro = vec3(camX(t), sin(t * 0.35) * 0.18, t);
+  vec3 ta = vec3(camX(t + 2.5), 0.0, t + 2.5);
+  vec3 fw = normalize(ta - ro);
+  vec3 rt = normalize(cross(vec3(0.0, 1.0, 0.0), fw));
+  vec3 up = cross(fw, rt);
+  // bank into the turns, plus a slow roll
+  // bank into the turn plus a gentle sway. Must oscillate, not accumulate:
+  // a uTime term would slowly roll the corridor upside down.
+  float bank = (camX(t + 2.5) - camX(t)) * 0.05 + sin(uTime * 0.09) * 0.22;
+  vec2 suv = uv * rot2(bank);
+  vec3 rd = normalize(suv.x * rt + suv.y * up + fw * (1.45 - uBass * 0.3));
+
+  float dist = 0.15;
+  bool hit = false;
+  for (int i = 0; i < 72; i++) {
+    float d = mapMaze3(ro + rd * dist);
+    if (d < 0.0035 * dist + 0.0015) { hit = true; break; }
+    dist += d * 0.85;
+    if (dist > 34.0) break;
+  }
+
+  vec3 col = vec3(0.0);
+  if (hit) {
+    vec3 p = ro + rd * dist;
+    vec3 n = mazeNormal(p);
+    vec3 g = abs(fract(p / CELL) - 0.5);
+    // wide soft seams, not hairlines: the surfaces should feel lit from within
+    float seam = smoothstep(0.32, 0.5, max(g.x, max(g.y * 0.55, g.z)));
+    float band = smoothstep(0.55, 1.0, sin(p.z * 2.1 - uTime * 3.0) * 0.5 + 0.5);
+    float sheet = smoothstep(0.2, 0.5, max(g.x, g.z)); // broad glowing panels
+
+    float hue = fract(uHue + p.z * 0.02 + hash21(floor(p.xz / CELL)) * 0.16);
+    float lam = 0.45 + 0.55 * max(dot(n, normalize(vec3(0.3, 0.8, -0.5))), 0.0);
+    // emissive walls: saturated colour at real brightness, not a dark surface
+    vec3 wall = hsv(hue, 0.85, 0.62) * lam;
+    wall += hsv(fract(hue + 0.08), 0.7, 0.55) * sheet * (0.6 + uBass * 0.5);
+    wall += hsv(fract(hue + 0.12), 0.95, 1.0) * seam * (0.5 + uKick * 1.2);
+    wall += hsv(fract(hue + 0.5), 0.85, 0.9) * band * (0.3 + uMid * 0.7);
+    wall += hsv(fract(uHue2), 0.75, 0.9) * pow(1.0 - abs(dot(n, rd)), 2.0) * 0.8;
+    col = wall * (1.0 + uKick * 0.5);
+  }
+
+  // thick coloured haze — the atmosphere is half the look, so it fogs into a
+  // saturated hue rather than into black
+  float fog = 1.0 - exp(-dist * 0.115);
+  vec3 haze = hsv(fract(uHue2 + 0.02), 0.8, 0.34 + uBass * 0.22 + uKick * 0.1);
+  col = mix(col, haze, fog);
+  // glow pouring out of the depths + the light you carry
+  col += hsv(fract(uHue), 0.7, 0.30) * exp(-length(uv) * 1.5) * (0.55 + uKick * 0.8);
+  col += hsv(fract(uHue2 + 0.12), 0.6, 0.16) * exp(-dist * 0.06);
+  col *= 1.0 - 0.28 * smoothstep(0.8, 2.0, length(uv));
+  return col;
+}
+
+/* ---- style 5: FRACTAL — kaleidoscopic IFS, folded infinite temple ----
+   A rotated Sierpinski fold. Its distance estimator is essentially exact, so
+   unlike a mandelbox it resolves cleanly at these step counts instead of
+   boiling into speckle, and the fold rotation animates beautifully. */
+
+float mapFractal(vec3 p) {
+  // The fold angle MUST stay small and bounded. Past about 0.6 rad the folds
+  // scatter the attractor and the whole structure disappears from view, so an
+  // unbounded uTime term here empties the screen a few seconds in. Oscillate.
+  float a = sin(uTime * 0.06) * 0.42 + uMid * 0.12;
+  float scale = 1.92 + sin(uTime * 0.07) * 0.08 + uBass * 0.04;
+  mat2 rxy = rot2(a);
+  mat2 ryz = rot2(a * 0.63);
+  for (int i = 0; i < 6; i++) {
+    p = abs(p);
+    p.xy = rxy * p.xy;
+    if (p.x + p.y < 0.0) p.xy = -p.yx;
+    if (p.x + p.z < 0.0) p.xz = -p.zx;
+    if (p.y + p.z < 0.0) p.zy = -p.yz;
+    p.yz = ryz * p.yz;
+    p = p * scale - vec3(1.0, 0.62, 0.9) * (scale - 1.0);
+  }
+  // Terminating on a solid box instead of length(p) turns a dust-thin
+  // attractor into carved architecture with real surfaces to light.
+  return sdBox(p, vec3(1.0, 1.45, 1.0)) * pow(scale, -6.0);
+}
+
+vec3 fractalNormal(vec3 p) {
+  vec2 e = vec2(0.0012, 0.0);
+  return normalize(vec3(
+    mapFractal(p + e.xyy) - mapFractal(p - e.xyy),
+    mapFractal(p + e.yxy) - mapFractal(p - e.yxy),
+    mapFractal(p + e.yyx) - mapFractal(p - e.yyx)));
+}
+
+vec3 modeFractal(vec2 uv) {
+  float t = uTravel * 0.42;
+  vec3 ro = vec3(sin(t * 0.3) * 0.35, cos(t * 0.23) * 0.28, -2.35 + sin(t * 0.4) * 0.4 - uKick * 0.18);
+  vec3 rd = normalize(vec3(uv * (1.2 - uBass * 0.15), 1.7));
+  float ay = t * 0.33, ax = t * 0.19;
+  ro.xz = rot2(ay) * ro.xz; rd.xz = rot2(ay) * rd.xz;
+  ro.yz = rot2(ax) * ro.yz; rd.yz = rot2(ax) * rd.yz;
+
+  float dist = 0.0;
+  float steps = 0.0;
+  bool hit = false;
+  for (int i = 0; i < 80; i++) {
+    vec3 p = ro + rd * dist;
+    float d = mapFractal(p);
+    if (d < 0.0009 * dist + 0.0005) { hit = true; break; }
+    dist += d * 0.72;         // fractal DEs need conservative stepping
+    steps += 1.0;
+    if (dist > 7.0) break;
+  }
+
+  vec3 col;
+  if (hit) {
+    vec3 p = ro + rd * dist;
+    vec3 n = fractalNormal(p);
+    // steps taken is a free ambient-occlusion term: creases take more steps
+    float ao = 1.0 - steps / 80.0;
+    float key = max(dot(n, normalize(vec3(0.5, 0.7, -0.5))), 0.0);
+    float fill = max(dot(n, normalize(vec3(-0.6, -0.2, -0.5))), 0.0);
+    float rim = pow(1.0 - abs(dot(n, rd)), 2.0);
+    float hue = fract(uHue + dist * 0.13 + ao * 0.2);
+    // emissive, not lambert-dark: the surface glows in its own colour
+    col = hsv(hue, 0.82, 0.30 + key * 0.85) * (0.9 + uKick * 0.6);
+    col += hsv(fract(hue + 0.42), 0.85, 0.75) * fill * 0.55;
+    col += hsv(fract(hue + 0.15), 0.9, 1.0) * rim * (0.55 + uMid * 0.8);
+    col *= 0.55 + 0.45 * ao;
+  } else {
+    col = vec3(0.0);
+  }
+  // saturated volumetric bed so the silhouette floats in colour, not black
+  float depthMix = hit ? 1.0 - exp(-dist * 0.42) : 1.0;
+  vec3 haze = hsv(fract(uHue2 + 0.02), 0.8, 0.26 + uBass * 0.2 + uKick * 0.08);
+  col = mix(col, haze, depthMix * 0.75);
+  col += hsv(fract(uHue), 0.7, 0.28) * exp(-length(uv) * 1.4) * (0.5 + uKick * 0.8);
+  col *= 1.0 - 0.28 * smoothstep(0.7, 1.9, length(uv));
+  return col;
+}
+
 void main() {
   vec2 uv = (gl_FragCoord.xy * 2.0 - uRes) / min(uRes.x, uRes.y);
 
@@ -165,7 +377,9 @@ void main() {
   if (uMode < 0.5) col = modeTunnel(uv);
   else if (uMode < 1.5) col = modeHypno(uv);
   else if (uMode < 2.5) col = modeMaze(uv);
-  else col = modeMandala(uv);
+  else if (uMode < 3.5) col = modeMandala(uv);
+  else if (uMode < 4.5) col = modeMazeRun(uv);
+  else col = modeFractal(uv);
 
   // common: build strobe (accelerating) and drop whiteout + shockwave
   // Build flash. The phase is accumulated on the CPU and passed in: writing
@@ -309,7 +523,12 @@ void main() {
       this.canvas.height = Math.max(2, Math.round(r.height * dpr));
       this.dpr = dpr;
       if (this.gl) {
-        const scale = [0.5, 0.72, 1][this.quality];
+        // Raymarching costs far more per pixel, so the 3D modes get their own
+        // ladder rather than multiplying the 2D one — stacking the factors put
+        // the low tier at 0.31x, which is an unreadable smear.
+        const scale = this.is3D
+          ? [0.55, 0.68, 0.82][this.quality]
+          : [0.5, 0.72, 1][this.quality];
         this.canvasGL.width = Math.max(2, Math.round(r.width * dpr * scale));
         this.canvasGL.height = Math.max(2, Math.round(r.height * dpr * scale));
         this.gl.viewport(0, 0, this.canvasGL.width, this.canvasGL.height);
@@ -317,7 +536,12 @@ void main() {
     }
 
     static get STYLES() {
-      return ['TUNNEL', 'HYPNO', 'HYPERMAZE', 'MANDALA'];
+      return ['TUNNEL', 'HYPNO', 'HYPERMAZE', 'MANDALA', 'MAZE RUN', 'FRACTAL'];
+    }
+
+    // raymarched styles: far more expensive per pixel, so they render smaller
+    get is3D() {
+      return this.styleIndex >= 4;
     }
 
     // 5x5 pixel font (rows top->bottom, 5 bits each, MSB = left column)
@@ -395,12 +619,15 @@ void main() {
         arms: s === 0,
         rings: s === 0 || s === 2,
         core: s === 0,
+        // the 3D modes already fill the frame; line art on top just muddies it
+        particles: !this.is3D,
         wave2d: !this.gl, // 2D waveform ring only in the no-WebGL fallback
       };
     }
 
     cycleStyle() {
       this.styleIndex = (this.styleIndex + 1) % Visualizer.STYLES.length;
+      this._resize(); // 2D and 3D modes render at different scales
       return Visualizer.STYLES[this.styleIndex];
     }
 
@@ -634,8 +861,10 @@ void main() {
         }
       } else {
         if (this._slowFrames > 0) this._slowFrames--;
-        if (dt < 0.02 && this.quality < 2 && (this._downSteps || 0) < 4) {
-          if (++this._fastFrames > 180) {
+        // 0.023 ≈ 43fps: loose enough that a machine sitting in the 45-55 range
+        // can climb back out, rather than parking at the low tier forever
+        if (dt < 0.023 && this.quality < 2 && (this._downSteps || 0) < 4) {
+          if (++this._fastFrames > 150) {
             this.quality++;
             this._fastFrames = 0;
             this._resize();
@@ -802,6 +1031,7 @@ void main() {
       }
 
       // ---- particles (lead notes, angle mapped to pitch) ----
+      if (!show.particles) this.particles.length = 0;
       for (let i = this.particles.length - 1; i >= 0; i--) {
         const pt = this.particles[i];
         pt.life -= dt * 1.3;

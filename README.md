@@ -210,12 +210,20 @@ downloads a 44.1 kHz 16-bit stereo file — the full song chain in SONG mode,
   Canvas 2D layer (kick-spawned polygon rings, pitch-mapped lead particles,
   snare-roll screen shake). Palette + symmetry per preset; falls back to
   2D-only without WebGL. Track chips VU-flash on every hit.
-  **Four shader styles** (✦ button on the viz, or press **V**):
+  **Six shader styles** (✦ button on the viz, or press **V**) — the last two
+  are true raymarched 3D and render on their own resolution ladder:
   - **TUNNEL** — kaleidoscopic neon tunnel + live waveform ring + 2D mandala arms
   - **HYPNO** — bold rainbow spiral rings flowing into a drifting off-center vortex
   - **HYPERMAZE** — stepped neon zigzag labyrinth (DMT blotter-art style),
     diamond symmetry, colors cycling per ring
   - **MANDALA** — ornate concentric petal/bead rings with inked outlines,
     slowly rotating, blooming on the kick
+  - **MAZE RUN** *(3D)* — fly an endless maze corridor that turns at right
+    angles, carved out of solid rock as a signed distance field. Emissive
+    walls, seams that flare on the kick, light bands rushing past, and thick
+    coloured haze. Speed and field of view ride the bass
+  - **FRACTAL** *(3D)* — a rotating kaleidoscopic IFS fold: infinite carved
+    architecture you orbit through, ambient occlusion derived from the march
+    itself, fold angle breathing with the mids
   All styles share the audio drive (bass = flow speed, kick = pulse,
   build strobe, drop shockwave).
